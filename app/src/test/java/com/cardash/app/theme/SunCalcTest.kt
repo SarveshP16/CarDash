@@ -40,6 +40,15 @@ class SunCalcTest {
         assertTrue(SunCalc.isNight(midnight, lat, lon, sydney))
     }
 
+    @Test fun `wrong phone time zone still gives the right answer`() {
+        // Sydney mid-morning, but the phone thinks it's in New York (evening, previous date).
+        val sydneyMorning = ZonedDateTime.of(2026, 10, 16, 10, 30, 0, 0, sydney).toInstant()
+        val sydneyNight = ZonedDateTime.of(2026, 10, 16, 22, 30, 0, 0, sydney).toInstant()
+        val newYork = ZoneId.of("America/New_York")
+        assertFalse(SunCalc.isNight(sydneyMorning, lat, lon, newYork))
+        assertTrue(SunCalc.isNight(sydneyNight, lat, lon, newYork))
+    }
+
     @Test fun `polar night has no sun times`() {
         assertNull(SunCalc.sunTimes(LocalDate.of(2026, 12, 21), 78.2, 15.6))
     }

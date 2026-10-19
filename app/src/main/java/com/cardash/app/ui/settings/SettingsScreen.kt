@@ -29,6 +29,8 @@ fun SettingsScreen(onBack: () -> Unit) {
             ) {
                 CarDetectionSection(s)
                 RoutineSection(s)
+                MusicSection(s)
+                DashcamSection(s)
             }
             Column(
                 Modifier.weight(1f).verticalScroll(rememberScrollState()),

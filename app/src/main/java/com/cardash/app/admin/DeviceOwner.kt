@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.util.Log
 import com.cardash.app.MainActivity
 
@@ -19,6 +20,9 @@ object DeviceOwner {
     private val runtimePermissions = listOf(
         Manifest.permission.ACCESS_FINE_LOCATION,
         Manifest.permission.ACCESS_COARSE_LOCATION,
+        Manifest.permission.BLUETOOTH_CONNECT,
+        Manifest.permission.POST_NOTIFICATIONS,
+        Manifest.permission.CAMERA,
     )
 
     private fun dpm(context: Context) = context.getSystemService(DevicePolicyManager::class.java)
@@ -34,7 +38,8 @@ object DeviceOwner {
         runCatching {
             // No lock screen when the car turns on (only works while no PIN/pattern is set).
             dpm.setKeyguardDisabled(admin, true)
-            runtimePermissions.forEach {
+            // Only when missing: each grant makes Android show an "IT admin is allowing location" pop-up.
+            runtimePermissions.filter { context.checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }.forEach {
                 dpm.setPermissionGrantState(
                     admin, context.packageName, it, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED,
                 )

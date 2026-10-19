@@ -14,8 +14,10 @@ import com.cardash.app.car.CarState
 object Notifications {
     private const val CHANNEL_STATUS = "status"
     private const val CHANNEL_ALERTS = "alerts"
+    private const val CHANNEL_RECORDING = "recording"
     const val STATUS_ID = 1
     private const val HEAT_ID = 2
+    const val RECORDING_ID = 3
 
     fun createChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
@@ -24,6 +26,9 @@ object Notifications {
         )
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL_ALERTS, context.getString(R.string.channel_alerts), NotificationManager.IMPORTANCE_HIGH),
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_RECORDING, context.getString(R.string.channel_recording), NotificationManager.IMPORTANCE_LOW),
         )
     }
 
@@ -59,6 +64,16 @@ object Notifications {
                 .build(),
         )
     }
+
+    /** Shown while the camera service records (Android requires it for background camera use). */
+    fun recording(context: Context, what: String): Notification =
+        Notification.Builder(context, CHANNEL_RECORDING)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(what)
+            .setContentText("Saving to Movies/CarDash")
+            .setContentIntent(openApp(context))
+            .setOngoing(true)
+            .build()
 
     private fun openApp(context: Context): PendingIntent = PendingIntent.getActivity(
         context, 0, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE,

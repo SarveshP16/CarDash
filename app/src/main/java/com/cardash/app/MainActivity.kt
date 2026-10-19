@@ -16,6 +16,7 @@ import com.cardash.app.car.CarRepository
 import com.cardash.app.car.CarState
 import com.cardash.app.location.LocationRepository
 import com.cardash.app.media.NowPlayingRepository
+import com.cardash.app.nav.InAppNavigator
 import com.cardash.app.ui.CarDashRoot
 import kotlinx.coroutines.launch
 
@@ -46,6 +47,9 @@ class MainActivity : ComponentActivity() {
         if (!LocationRepository.hasPermission(this)) {
             locationPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
         }
+
+        // First run shows Google's navigation terms; after that it's instant.
+        InAppNavigator.init(this)
 
         setContent { CarDashRoot() }
     }

@@ -12,6 +12,10 @@ import androidx.compose.ui.unit.sp
 import com.cardash.app.settings.Settings
 import com.cardash.app.settings.SettingsStore
 import com.cardash.app.settings.ThemeMode
+import com.cardash.app.battery.ChargeLimiter
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlin.math.roundToInt
 
 @Composable
 fun DisplaySection(s: Settings) {
@@ -32,6 +36,23 @@ fun DisplaySection(s: Settings) {
                 },
             )
         }
+    }
+
+    SectionTitle("Battery")
+    val rootFailed by ChargeLimiter.rootFailed.collectAsStateWithLifecycle()
+    SwitchRow(
+        "Limit charging to ${s.chargeLimit}%",
+        s.chargeLimitEnabled,
+        if (rootFailed) "Root access denied. Allow CarDash in Magisk."
+        else "Charges back up from ${s.chargeLimit - ChargeLimiter.RESUME_GAP}%. Needs root (Magisk asks once).",
+    ) { v -> SettingsStore.update { it.copy(chargeLimitEnabled = v) } }
+    if (s.chargeLimitEnabled) {
+        Slider(
+            value = s.chargeLimit.toFloat(),
+            onValueChange = { v -> SettingsStore.update { it.copy(chargeLimit = (v / 5).roundToInt() * 5) } },
+            valueRange = 60f..95f,
+            steps = 6,
+        )
     }
 
     SectionTitle("Heat alert")

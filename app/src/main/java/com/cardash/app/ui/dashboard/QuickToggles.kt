@@ -3,16 +3,19 @@ package com.cardash.app.ui.dashboard
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.BrightnessLow
+import androidx.compose.material.icons.filled.CameraFront
+import androidx.compose.material.icons.filled.CameraRear
 import androidx.compose.material.icons.filled.DoNotDisturbOn
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -23,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.cardash.app.camera.CamSide
+import com.cardash.app.camera.CameraRecordService
 import com.cardash.app.car.CarRepository
 import com.cardash.app.car.CarService
 import com.cardash.app.car.CarState
@@ -39,9 +44,9 @@ private fun readStates(context: Context) = ToggleStates(
     autoBrightness = SystemToggles.isAutoBrightness(context),
 )
 
-/** Wi-Fi, Bluetooth, DND, brightness, manual car mode, apps and settings. */
+/** Row one: Wi-Fi, Bluetooth, DND, brightness and manual car mode. */
 @Composable
-fun QuickToggles(onOpenApps: () -> Unit, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
+fun SystemToggleRow(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var refresh by remember { mutableIntStateOf(0) }
     // System state can change outside the app (e.g. a routine), so poll every couple of seconds.
@@ -54,20 +59,20 @@ fun QuickToggles(onOpenApps: () -> Unit, onOpenSettings: () -> Unit, modifier: M
     val car by CarRepository.state.collectAsStateWithLifecycle()
     fun toggle(action: () -> Unit) { action(); refresh++ }
 
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        val buttonModifier = Modifier.weight(1f).height(64.dp)
-        BigIconButton(Icons.Filled.Wifi, null, buttonModifier, states.wifi) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        val tile = Modifier.weight(1f).fillMaxHeight()
+        BigIconButton(Icons.Filled.Wifi, null, tile, states.wifi) {
             toggle { SystemToggles.setWifi(context, !states.wifi) }
         }
-        BigIconButton(Icons.Filled.Bluetooth, null, buttonModifier, states.bluetooth) {
+        BigIconButton(Icons.Filled.Bluetooth, null, tile, states.bluetooth) {
             toggle { SystemToggles.setBluetooth(context, !states.bluetooth) }
         }
-        BigIconButton(Icons.Filled.DoNotDisturbOn, null, buttonModifier, states.dnd) {
+        BigIconButton(Icons.Filled.DoNotDisturbOn, null, tile, states.dnd) {
             toggle { SystemToggles.setDnd(context, !states.dnd) }
         }
         BigIconButton(
             if (states.autoBrightness) Icons.Filled.BrightnessAuto else Icons.Filled.BrightnessLow,
-            null, buttonModifier, states.autoBrightness,
+            null, tile, states.autoBrightness,
         ) {
             // Auto ↔ dim (for night driving).
             toggle {
@@ -75,14 +80,34 @@ fun QuickToggles(onOpenApps: () -> Unit, onOpenSettings: () -> Unit, modifier: M
                 else SystemToggles.setAutoBrightness(context, true)
             }
         }
-        // Manual car mode, for testing without the car: forces On/Off; long-term the signals decide.
-        BigIconButton(Icons.Filled.PowerSettingsNew, null, buttonModifier, car == CarState.ON) {
+        // Manual car mode, for testing without the car: forces On/Off; the signals take over again later.
+        BigIconButton(Icons.Filled.PowerSettingsNew, null, tile, car == CarState.ON) {
             CarService.start(
                 context,
                 if (car == CarState.ON) CarService.ACTION_FORCE_OFF else CarService.ACTION_FORCE_ON,
             )
         }
-        BigIconButton(Icons.Filled.Apps, null, buttonModifier, onClick = onOpenApps)
-        BigIconButton(Icons.Filled.Settings, null, buttonModifier, onClick = onOpenSettings)
+    }
+}
+
+/** Row two: front and back camera recording (red while recording), apps and settings. */
+@Composable
+fun CameraAppsRow(onOpenApps: () -> Unit, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val recording by CameraRecordService.recordingSide.collectAsStateWithLifecycle()
+    val red = MaterialTheme.colorScheme.error
+
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        val tile = Modifier.weight(1f).fillMaxHeight()
+        BigIconButton(
+            Icons.Filled.CameraFront, null, tile,
+            container = if (recording == CamSide.FRONT) red else null,
+        ) { CameraRecordService.toggle(context, CamSide.FRONT) }
+        BigIconButton(
+            Icons.Filled.CameraRear, null, tile,
+            container = if (recording == CamSide.BACK) red else null,
+        ) { CameraRecordService.toggle(context, CamSide.BACK) }
+        BigIconButton(Icons.Filled.Apps, null, tile, onClick = onOpenApps)
+        BigIconButton(Icons.Filled.Settings, null, tile, onClick = onOpenSettings)
     }
 }

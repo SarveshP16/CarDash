@@ -1,16 +1,8 @@
 package com.cardash.app.ui.dashboard
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BatteryChargingFull
-import androidx.compose.material.icons.filled.BatteryStd
-import androidx.compose.material.icons.filled.DirectionsCar
-import androidx.compose.material.icons.filled.Thermostat
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,74 +10,62 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cardash.app.battery.BatteryRepository
+import com.cardash.app.battery.ChargeLimiter
 import com.cardash.app.battery.HeatLevel
 import com.cardash.app.battery.HeatRules
-import com.cardash.app.car.CarRepository
-import com.cardash.app.car.CarState
 import com.cardash.app.settings.SettingsStore
 import com.cardash.app.theme.HeatColors
 import kotlinx.coroutines.delay
-import java.time.LocalTime
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 private val ClockFormat = DateTimeFormatter.ofPattern("h:mm")
+private val DayFormat = DateTimeFormatter.ofPattern("EEE d MMM")
 
-/** Clock, car state, battery and battery temperature. */
+/** Big light clock; date, battery and temperature small on the right (temperature turns amber/red when hot). */
 @Composable
 fun StatusStrip(modifier: Modifier = Modifier) {
-    val time by produceState(LocalTime.now()) {
+    val now by produceState(LocalDateTime.now()) {
         while (true) {
-            value = LocalTime.now()
+            value = LocalDateTime.now()
             delay(1_000)
         }
     }
-    val car by CarRepository.state.collectAsStateWithLifecycle()
     val battery by BatteryRepository.info.collectAsStateWithLifecycle()
+    val holding by ChargeLimiter.holding.collectAsStateWithLifecycle()
     val settings by SettingsStore.settings.collectAsStateWithLifecycle()
-    val heat = HeatRules.level(battery.tempC, settings.heatWarnC)
-    val dim = MaterialTheme.colorScheme.onSurfaceVariant
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val tempColor = when (HeatRules.level(battery.tempC, settings.heatWarnC)) {
+        HeatLevel.NORMAL -> muted
+        HeatLevel.HOT -> HeatColors.Hot
+        HeatLevel.CRITICAL -> HeatColors.Critical
+    }
 
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Text(
-            time.format(ClockFormat),
-            fontSize = 34.sp,
-            fontWeight = FontWeight.SemiBold,
+            now.format(ClockFormat),
+            fontSize = 46.sp,
+            lineHeight = 46.sp,
+            fontWeight = FontWeight.Light,
             color = MaterialTheme.colorScheme.onBackground,
         )
-        Spacer(Modifier.weight(1f))
-        Chip(
-            Icons.Filled.DirectionsCar,
-            if (car == CarState.ON) "On" else "Off",
-            if (car == CarState.ON) MaterialTheme.colorScheme.primary else dim,
-        )
-        Chip(
-            if (battery.plugged) Icons.Filled.BatteryChargingFull else Icons.Filled.BatteryStd,
-            "${battery.levelPercent}%",
-            dim,
-        )
-        Chip(
-            Icons.Filled.Thermostat,
-            "%.0f°C".format(battery.tempC),
-            when (heat) {
-                HeatLevel.NORMAL -> dim
-                HeatLevel.HOT -> HeatColors.Hot
-                HeatLevel.CRITICAL -> HeatColors.Critical
-            },
-        )
-    }
-}
-
-@Composable
-private fun Chip(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, color: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(3.dp))
-        Text(text, color = color, fontSize = 16.sp)
+        Column(horizontalAlignment = Alignment.End) {
+            Text(now.format(DayFormat), fontSize = 14.sp, color = muted, textAlign = TextAlign.End)
+            Row {
+                // ⏸ = charge limit reached, running on battery until it drops 5%.
+                val charge = when {
+                    holding -> " ⏸"
+                    battery.plugged -> " ⚡"
+                    else -> ""
+                }
+                Text("${battery.levelPercent}%$charge · ", fontSize = 14.sp, color = muted)
+                Text("%.0f°".format(battery.tempC), fontSize = 14.sp, color = tempColor)
+            }
+        }
     }
 }

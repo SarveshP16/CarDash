@@ -1,6 +1,5 @@
 package com.cardash.app.ui.dashboard
 
-import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -8,8 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -27,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,10 +36,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.cardash.app.apps.LaunchableApps
+import com.cardash.app.media.MusicApp
 import com.cardash.app.media.NowPlayingRepository
+import com.cardash.app.settings.SettingsStore
 import com.cardash.app.ui.components.DashCard
-
-private const val SPOTIFY = "com.spotify.music"
 
 /** Song, artist and transport controls for whichever player is active. */
 @Composable
@@ -50,60 +49,65 @@ fun NowPlayingCard(modifier: Modifier = Modifier) {
     val hasAccess by NowPlayingRepository.hasAccess.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val colors = MaterialTheme.colorScheme
+    val settings by SettingsStore.settings.collectAsStateWithLifecycle()
+    // The app opened from the art when nothing is playing (YouTube Music unless changed in Settings).
+    val musicApp = remember(settings.musicPackage) {
+        MusicApp.resolve(context)?.let { it to (LaunchableApps.label(context, it) ?: it) }
+    }
 
     DashCard(modifier) {
-        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.fillMaxHeight().aspectRatio(1f).clip(RoundedCornerShape(14.dp))
-                    .background(colors.surfaceVariant)
-                    .clickable { openPlayer(context, nowPlaying?.packageName ?: SPOTIFY) },
-                contentAlignment = Alignment.Center,
-            ) {
-                val art = nowPlaying?.art
-                if (art != null) {
-                    Image(art.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-                } else {
-                    Icon(Icons.Filled.MusicNote, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(40.dp))
+        // Art and title on top, controls spread along the bottom: titles get the full width.
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(56.dp).clip(RoundedCornerShape(10.dp))
+                        .background(colors.surfaceVariant)
+                        .clickable {
+                            (nowPlaying?.packageName ?: musicApp?.first)?.let { LaunchableApps.launch(context, it) }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    val art = nowPlaying?.art
+                    if (art != null) {
+                        Image(art.asImageBitmap(), null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    } else {
+                        Icon(Icons.Filled.MusicNote, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(26.dp))
+                    }
                 }
-            }
-            Column(
-                Modifier.weight(1f).fillMaxHeight().padding(start = 14.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Column {
+                Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(
                         when {
-                            !hasAccess -> "Media access not granted"
-                            nowPlaying == null -> "Nothing playing"
+                            !hasAccess -> "Media access off"
+                            nowPlaying == null -> "Not playing"
                             else -> nowPlaying!!.title
                         },
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
                         color = colors.onSurface,
-                        maxLines = 2,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
                         when {
-                            !hasAccess -> "Run setup.sh to allow it"
-                            nowPlaying == null -> "Tap the art to open Spotify"
+                            !hasAccess -> "Run setup.sh"
+                            nowPlaying == null -> musicApp?.let { "Tap the art to open ${it.second}" } ?: "Open a music app"
                             else -> nowPlaying!!.artist
                         },
-                        fontSize = 15.sp,
+                        fontSize = 14.sp,
                         color = colors.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    Control(Icons.Filled.SkipPrevious, "Previous") { NowPlayingRepository.previous() }
-                    Control(
-                        if (nowPlaying?.isPlaying == true) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                        "Play/pause",
-                        primary = true,
-                    ) { NowPlayingRepository.playPause() }
-                    Control(Icons.Filled.SkipNext, "Next") { NowPlayingRepository.next() }
-                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Control(Icons.Filled.SkipPrevious, "Previous") { NowPlayingRepository.previous() }
+                Control(
+                    if (nowPlaying?.isPlaying == true) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    "Play/pause",
+                    accent = true,
+                ) { NowPlayingRepository.playPause() }
+                Control(Icons.Filled.SkipNext, "Next") { NowPlayingRepository.next() }
             }
         }
     }
@@ -113,24 +117,15 @@ fun NowPlayingCard(modifier: Modifier = Modifier) {
 private fun Control(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     description: String,
-    primary: Boolean = false,
+    accent: Boolean = false,
     onClick: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier.size(if (primary) 64.dp else 56.dp)
-            .clip(RoundedCornerShape(50))
-            .background(if (primary) colors.primary else colors.surfaceVariant),
-    ) {
+    IconButton(onClick = onClick, modifier = Modifier.size(52.dp)) {
         Icon(
             icon, description,
-            tint = if (primary) colors.onPrimary else colors.onSurface,
-            modifier = Modifier.size(if (primary) 38.dp else 32.dp),
+            tint = if (accent) colors.primary else colors.onSurface,
+            modifier = Modifier.size(if (accent) 40.dp else 32.dp),
         )
     }
-}
-
-private fun openPlayer(context: Context, packageName: String) {
-    context.packageManager.getLaunchIntentForPackage(packageName)?.let(context::startActivity)
 }

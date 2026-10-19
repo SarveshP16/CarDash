@@ -10,9 +10,9 @@ import java.time.Instant
 import java.time.ZoneId
 
 object DayNight {
-    // Sydney, used until the phone has had its first GPS fix.
-    private const val FALLBACK_LAT = -33.8688
-    private const val FALLBACK_LON = 151.2093
+    // Sydney, used (for sun times and the map) until the phone has had its first GPS fix.
+    const val FALLBACK_LAT = -33.8688
+    const val FALLBACK_LON = 151.2093
 
     fun isNight(mode: ThemeMode, fix: Fix?, now: Instant = Instant.now(), zone: ZoneId = ZoneId.systemDefault()) =
         when (mode) {

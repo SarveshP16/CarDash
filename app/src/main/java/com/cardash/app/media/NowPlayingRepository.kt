@@ -3,12 +3,14 @@ package com.cardash.app.media
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
+import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
+import android.view.KeyEvent
 import androidx.core.app.NotificationManagerCompat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -68,8 +70,10 @@ object NowPlayingRepository {
     }
 
     private fun onSessionsChanged(controllers: List<MediaController>) {
+        // Prefer what's playing; otherwise the most recent session that has a track loaded. Idle sessions
+        // with empty metadata (e.g. the Google app's) are ignored so the card says "Nothing playing".
         val best = controllers.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
-            ?: controllers.firstOrNull()
+            ?: controllers.firstOrNull { !it.metadata?.getString(MediaMetadata.METADATA_KEY_TITLE).isNullOrBlank() }
         if (best?.sessionToken != controller?.sessionToken) {
             controller?.unregisterCallback(controllerCallback)
             controller = best
@@ -98,7 +102,25 @@ object NowPlayingRepository {
         else c.transportControls.play()
     }
 
+    val isPlaying: Boolean get() = controller?.playbackState?.state == PlaybackState.STATE_PLAYING
+
     fun pause() { controller?.transportControls?.pause() }
+
+    /**
+     * Resumes [preferredPackage]'s session if it's still alive (YouTube Music keeps it while paused).
+     * If the app was killed, a media-button PLAY makes Android restart the last app that played audio.
+     */
+    fun resume(context: Context, preferredPackage: String?) {
+        val sessions = manager?.let { m -> listenerComponent?.let { runCatching { m.getActiveSessions(it) }.getOrNull() } }
+        val target = sessions?.firstOrNull { it.packageName == preferredPackage } ?: controller
+        if (target != null) {
+            target.transportControls.play()
+            return
+        }
+        val audio = context.getSystemService(AudioManager::class.java)
+        audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PLAY))
+        audio.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PLAY))
+    }
     fun next() { controller?.transportControls?.skipToNext() }
     fun previous() { controller?.transportControls?.skipToPrevious() }
 }

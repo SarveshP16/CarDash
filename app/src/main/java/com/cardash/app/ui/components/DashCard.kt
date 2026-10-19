@@ -10,14 +10,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-/** The rounded panel every dashboard tile sits in. */
+/** Corner radius shared by every tile, so the dashboard reads as one system. */
+val TileShape = RoundedCornerShape(14.dp)
+
+/** A borderless tile one step off the background. */
 @Composable
 fun DashCard(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
+        shape = TileShape,
         color = MaterialTheme.colorScheme.surface,
     ) {
-        Box(Modifier.padding(14.dp), content = content)
+        Box(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), content = content)
     }
 }

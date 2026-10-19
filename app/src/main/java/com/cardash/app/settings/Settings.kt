@@ -21,9 +21,33 @@ data class Settings(
     val pauseMediaOnCarOff: Boolean = true,
     val wifiOffOnCarOff: Boolean = true,
     val screenOffOnCarOff: Boolean = true,
+    /** Show the parked screen for [parkedSeconds] before turning the screen off. */
+    val parkedScreen: Boolean = true,
+    val parkedSeconds: Int = 15,
 
+    // Dashcam
+    val dashcamAutoRecord: Boolean = true,
+    val dashcamBackCamera: Boolean = true,
+    /** Delete the oldest unlocked clips once they pass [dashcamLimitGb]. */
+    val dashcamLoop: Boolean = true,
+    val dashcamLimitGb: Int = 8,
+
+    /** Package the now-playing card opens; null = auto-detect YouTube Music. */
+    val musicPackage: String? = null,
+    /** Resume music on Car On if it was playing when the car turned off. */
+    val resumeMusicOnCarOn: Boolean = true,
+
+    /** True: route inside CarDash (Navigation SDK), falling back to [navApp]. False: always open [navApp]. */
+    val navigateInApp: Boolean = false,
+    /** The navigation app opened by the Maps tile, and used for routes when not navigating in-app. */
     val navApp: NavApp = NavApp.GOOGLE_MAPS,
+    /** Spoken turn-by-turn directions during in-app navigation. Off: on-screen guidance only. */
+    val voiceGuidance: Boolean = false,
     val destinations: List<Destination> = listOf(Destination("Home", ""), Destination("Work", "")),
+
+    /** Pause charging at [chargeLimit]% and resume 5% below it (needs root). */
+    val chargeLimitEnabled: Boolean = true,
+    val chargeLimit: Int = 80,
 
     /** Battery temperature (°C) at which the heat warning shows; critical is this + 5. */
     val heatWarnC: Int = 45,

@@ -8,8 +8,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ServiceInfo
 import android.os.IBinder
+import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import com.cardash.app.battery.BatteryRepository
+import com.cardash.app.battery.ChargeLimiter
 import com.cardash.app.battery.HeatLevel
 import com.cardash.app.battery.HeatRules
 import com.cardash.app.notifications.Notifications
@@ -39,7 +43,9 @@ class CarService : Service() {
         override fun onReceive(context: Context, intent: Intent) {
             when (intent.action) {
                 Intent.ACTION_POWER_CONNECTED -> updateSignals { it.copy(powered = true) }
-                Intent.ACTION_POWER_DISCONNECTED -> updateSignals { it.copy(powered = false) }
+                // While the charge limiter has charging paused, USB reads as unplugged: that's not the car.
+                Intent.ACTION_POWER_DISCONNECTED ->
+                    if (!ChargeLimiter.holding.value) updateSignals { it.copy(powered = false) }
                 BluetoothDevice.ACTION_ACL_CONNECTED, BluetoothDevice.ACTION_ACL_DISCONNECTED -> {
                     // The typed overload needs API 33; the phone is on 29.
                     @Suppress("DEPRECATION")
@@ -56,7 +62,12 @@ class CarService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        startForeground(Notifications.STATUS_ID, Notifications.status(this, CarRepository.state.value))
+        ServiceCompat.startForeground(
+            this,
+            Notifications.STATUS_ID,
+            Notifications.status(this, CarRepository.state.value),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+        )
 
         val filter = IntentFilter().apply {
             addAction(Intent.ACTION_POWER_CONNECTED)
@@ -66,11 +77,21 @@ class CarService : Service() {
             addAction(Intent.ACTION_BATTERY_CHANGED)
         }
         // ACTION_BATTERY_CHANGED is sticky, so this returns the current battery state immediately.
-        registerReceiver(receiver, filter)?.let { sticky ->
+        // Exported: the Bluetooth broadcasts come from the Bluetooth app, not the system UID.
+        // They're protected broadcasts, so no other app can fake them.
+        ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_EXPORTED)?.let { sticky ->
             onBattery(sticky)
             updateSignals { it.copy(powered = BatteryRepository.info.value.plugged) }
         }
         checkCarBluetoothConnected()
+
+        // A hold left over from before a restart: turn charging back on, the limiter re-pauses if needed.
+        scope.launch { ChargeLimiter.release(this@CarService) }
+        scope.launch {
+            SettingsStore.settings.map { it.chargeLimitEnabled }.distinctUntilChanged().collect { enabled ->
+                if (!enabled) ChargeLimiter.release(this@CarService)
+            }
+        }
 
         // Re-evaluate when the car device or the "charger always on" setting changes.
         scope.launch {
@@ -162,10 +183,14 @@ class CarService : Service() {
         Notifications.updateStatus(this, state)
         val settings = SettingsStore.current
         if (state == CarState.ON) CarRoutines.onCarOn(this, settings) else CarRoutines.onCarOff(this, settings)
+        // Parked: charge normally again so the next start is detected by the charger as usual.
+        if (state == CarState.OFF) scope.launch { ChargeLimiter.release(this@CarService) }
     }
 
     private fun onBattery(intent: Intent) {
         val info = BatteryRepository.update(intent)
+        val s = SettingsStore.current
+        scope.launch { ChargeLimiter.onBattery(this@CarService, info, s.chargeLimitEnabled, s.chargeLimit) }
         val level = HeatRules.level(info.tempC, SettingsStore.current.heatWarnC)
         if (level != heatLevel) {
             heatLevel = level

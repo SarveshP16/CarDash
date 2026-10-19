@@ -84,6 +84,9 @@ fi
 step "Granting permissions"
 try pm grant "$PKG" android.permission.ACCESS_FINE_LOCATION
 try pm grant "$PKG" android.permission.ACCESS_COARSE_LOCATION
+try pm grant "$PKG" android.permission.BLUETOOTH_CONNECT
+try pm grant "$PKG" android.permission.POST_NOTIFICATIONS
+try pm grant "$PKG" android.permission.CAMERA
 # Now-playing card: read other apps' media sessions.
 try cmd notification allow_listener "$LISTENER"
 # Do Not Disturb while driving.
@@ -111,5 +114,7 @@ try am start -n "$ACTIVITY"
 echo
 echo -e "${GREEN}Done.${NC} On the phone, open Settings (gear on the dashboard):"
 echo "  1. Pick your car's Bluetooth device (pair it in Android Bluetooth settings first)."
-echo "  2. Enter Home/Work addresses and choose Google Maps or Waze."
-echo "  3. Sideload Spotify, Google Maps and/or Waze (no Play Store without a Google account)."
+echo "  2. Enter Home/Work addresses."
+echo "  3. Now that CarDash is Device Owner you can sign in to Google: install Google Maps"
+echo "     from the Play Store, and YouTube Music (Morphe-patched) — CarDash auto-detects it."
+echo "  4. Turn airplane mode off: while it's on, Android won't let apps toggle Wi-Fi."

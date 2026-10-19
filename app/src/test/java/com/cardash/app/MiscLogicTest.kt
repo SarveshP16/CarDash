@@ -3,8 +3,10 @@ package com.cardash.app
 import com.cardash.app.battery.HeatLevel
 import com.cardash.app.battery.HeatRules
 import com.cardash.app.location.SpeedMath
+import com.cardash.app.media.MusicApp
 import com.cardash.app.nav.Destination
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class MiscLogicTest {
@@ -28,5 +30,12 @@ class MiscLogicTest {
     @Test fun `empty address round-trips`() {
         val list = listOf(Destination("Work", ""))
         assertEquals(list, Destination.decodeList(Destination.encodeList(list)))
+    }
+
+    @Test fun `prefers patched youtube music over stock`() {
+        val pkgs = listOf("com.google.android.apps.youtube.music", "app.morphe.android.apps.youtube.music", "com.android.chrome")
+        assertEquals("app.morphe.android.apps.youtube.music", MusicApp.pickYouTubeMusic(pkgs))
+        assertEquals("com.google.android.apps.youtube.music", MusicApp.pickYouTubeMusic(pkgs.take(1)))
+        assertNull(MusicApp.pickYouTubeMusic(listOf("com.android.chrome")))
     }
 }

@@ -12,10 +12,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-data class Fix(val lat: Double, val lon: Double, val speedKmh: Int?)
+/** [bearing] (degrees) is only set while moving, so a parked car's map doesn't spin on GPS noise. */
+data class Fix(val lat: Double, val lon: Double, val speedKmh: Int?, val bearing: Float? = null)
 
 /**
- * Platform GPS (no Google Play services: the phone has no Google account).
+ * Platform GPS, so speed and sun times don't depend on Google Play services.
  * Only runs while the dashboard is visible, so a parked phone isn't heated by GPS.
  */
 object LocationRepository {
@@ -35,7 +36,7 @@ object LocationRepository {
         val lm = context.applicationContext.getSystemService(LocationManager::class.java)
         if (_fix.value == null) {
             lm.getLastKnownLocation(LocationManager.GPS_PROVIDER)
-                ?.let { _fix.value = it.toFix().copy(speedKmh = null) }
+                ?.let { _fix.value = it.toFix().copy(speedKmh = null, bearing = null) }
         }
         runCatching {
             lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1_000L, 0f, listener, Looper.getMainLooper())
@@ -47,13 +48,14 @@ object LocationRepository {
         manager?.removeUpdates(listener)
         manager = null
         // Keep the last position (for sunrise/sunset), but forget the speed.
-        _fix.value = _fix.value?.copy(speedKmh = null)
+        _fix.value = _fix.value?.copy(speedKmh = null, bearing = null)
     }
 
     private fun Location.toFix() = Fix(
         lat = latitude,
         lon = longitude,
         speedKmh = if (hasSpeed()) SpeedMath.toKmh(speed) else null,
+        bearing = if (hasBearing() && hasSpeed() && SpeedMath.toKmh(speed) > 0) bearing else null,
     )
 }
 

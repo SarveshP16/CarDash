@@ -31,9 +31,16 @@ object SunCalc {
         return SunTimes(julianToInstant(jTransit - h), julianToInstant(jTransit + h))
     }
 
+    /**
+     * Day if [now] falls between sunrise and sunset of any neighbouring date. Checking three dates
+     * makes this correct even when the phone's time zone doesn't match the location (the car
+     * phone has no SIM, so its zone can be wrong).
+     */
     fun isNight(now: Instant, lat: Double, lon: Double, zone: ZoneId): Boolean {
-        val times = sunTimes(now.atZone(zone).toLocalDate(), lat, lon) ?: return false
-        return now.isBefore(times.sunrise) || now.isAfter(times.sunset)
+        val today = now.atZone(zone).toLocalDate()
+        val days = (-1L..1L).map { sunTimes(today.plusDays(it), lat, lon) }
+        if (days.all { it == null }) return false
+        return days.filterNotNull().none { !now.isBefore(it.sunrise) && !now.isAfter(it.sunset) }
     }
 
     private fun julianToInstant(jd: Double): Instant =

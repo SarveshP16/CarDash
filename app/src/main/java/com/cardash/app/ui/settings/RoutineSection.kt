@@ -27,4 +27,9 @@ fun RoutineSection(s: Settings) {
     SwitchRow("Turn screen off", s.screenOffOnCarOff) { v ->
         SettingsStore.update { it.copy(screenOffOnCarOff = v) }
     }
+    if (s.screenOffOnCarOff) {
+        SwitchRow("Parked screen first", s.parkedScreen, "Clock and battery for ${s.parkedSeconds} s, then the screen turns off") { v ->
+            SettingsStore.update { it.copy(parkedScreen = v) }
+        }
+    }
 }

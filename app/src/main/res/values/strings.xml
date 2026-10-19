@@ -3,4 +3,5 @@
     <string name="app_name">CarDash</string>
     <string name="channel_status">Car status</string>
     <string name="channel_alerts">Heat alerts</string>
+    <string name="channel_recording">Camera recording</string>
 </resources>

@@ -2,6 +2,7 @@ package com.cardash.app.link
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.os.Build
 import android.util.Log
 import android.util.LruCache
 import android.util.Size
@@ -17,10 +18,12 @@ import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.io.FileInputStream
 import java.io.IOException
+import java.io.InputStream
 import java.io.OutputStream
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Serves dashcam videos and thumbnails to CarDash Link over plain HTTP, so the phone can stream
@@ -31,6 +34,10 @@ object ClipServer {
     private const val TAG = "ClipServer"
     const val PORT = 47820
     private const val BUFFER = 64 * 1024
+    private const val MAX_LINE = 4096
+    private const val MAX_HEADERS = 50
+    private const val MAX_CONNECTIONS = 8
+    private val active = AtomicInteger(0)
 
     private var scope: CoroutineScope? = null
     private var server: ServerSocket? = null
@@ -53,7 +60,19 @@ object ClipServer {
         s.launch {
             while (isActive) {
                 val socket = runCatching { ss.accept() }.getOrNull() ?: break
-                launch { runCatching { handle(app, socket) }.onFailure { Log.d(TAG, "Request ended: ${it.message}") } }
+                // A video player only needs a couple of connections; more is something misbehaving.
+                if (active.incrementAndGet() > MAX_CONNECTIONS) {
+                    active.decrementAndGet()
+                    runCatching { socket.close() }
+                    continue
+                }
+                launch {
+                    try {
+                        runCatching { handle(app, socket) }.onFailure { Log.d(TAG, "Request ended: ${it.message}") }
+                    } finally {
+                        active.decrementAndGet()
+                    }
+                }
             }
         }
     }
@@ -71,12 +90,17 @@ object ClipServer {
         // Only the phone on the same hotspot; never anything from outside.
         val from = socket.inetAddress
         if (from == null || !(from.isSiteLocalAddress || from.isLinkLocalAddress)) return
-        socket.soTimeout = 30_000
-        val input = socket.getInputStream().bufferedReader(Charsets.ISO_8859_1)
-        val requestLine = input.readLine() ?: return
-        val headers = generateSequence { input.readLine()?.takeIf { it.isNotEmpty() } }
-            .mapNotNull { line -> line.indexOf(':').takeIf { it > 0 }?.let { line.substring(0, it).trim().lowercase() to line.substring(it + 1).trim() } }
-            .toMap()
+        socket.soTimeout = 15_000
+        val input = socket.getInputStream().buffered()
+        val requestLine = readHttpLine(input) ?: return
+        val headers = mutableMapOf<String, String>()
+        while (true) {
+            val line = readHttpLine(input) ?: return
+            if (line.isEmpty()) break
+            if (headers.size >= MAX_HEADERS) return
+            val colon = line.indexOf(':')
+            if (colon > 0) headers[line.substring(0, colon).trim().lowercase()] = line.substring(colon + 1).trim()
+        }
         val parts = requestLine.split(' ')
         val method = parts.getOrNull(0)
         val path = parts.getOrNull(1)?.trim('/')?.split('/') ?: emptyList()
@@ -132,6 +156,7 @@ object ClipServer {
     }
 
     private fun sendThumb(context: Context, id: Long, out: OutputStream) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return status(out, "404 Not Found")
         val jpeg = thumbs.get(id) ?: runCatching {
             val bitmap = context.contentResolver.loadThumbnail(DashcamStorage.uri(id), Size(320, 180), null)
             ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.JPEG, 75, it) }.toByteArray()
@@ -152,6 +177,18 @@ object ClipServer {
     private fun write(out: OutputStream, text: String) {
         out.write(text.toByteArray(Charsets.ISO_8859_1))
         out.flush()
+    }
+
+    /** One line of an HTTP request (without CRLF), or null at the end or if it's longer than [MAX_LINE]. */
+    private fun readHttpLine(input: InputStream): String? {
+        val sb = StringBuilder()
+        while (true) {
+            val b = input.read()
+            if (b == -1) return null
+            if (b == '\n'.code) return sb.toString().removeSuffix("\r")
+            if (sb.length >= MAX_LINE) return null
+            sb.append(b.toChar())
+        }
     }
 
     /** Forget a deleted clip's thumbnail. */

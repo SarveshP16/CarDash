@@ -90,6 +90,8 @@ class LinkService : LifecycleService() {
 /** Wakes the app after a reboot or an update; it then starts the link if the hotspot is on. */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // Only the two system events it's declared for (other apps can't send these).
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED && intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
         Hotspot.watch(context)
     }
 }

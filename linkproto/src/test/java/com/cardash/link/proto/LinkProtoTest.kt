@@ -12,8 +12,8 @@ class LinkProtoTest {
     @Test fun `every message round-trips`() {
         val place = LinkPlace("Westfield", "Westfield, Church St", "ChIJabc", 1200)
         listOf(
-            Msg.Challenge("abcd", "Pixel"), Msg.Auth("mac", "CarDash"), Msg.Pair("012345", "CarDash"),
-            Msg.Paired("tok"), Msg.Ok, Msg.Denied("nope"), Msg.Ping, Msg.Pong,
+            Msg.Challenge("abcd", "Pixel"), Msg.Auth("mac", "CarDash", "n2"), Msg.Pair("012345", "CarDash", "n2"),
+            Msg.Paired("tok", "p"), Msg.Ok("p"), Msg.Denied("nope"), Msg.Ping, Msg.Pong,
             Msg.NowPlaying("Song", "Artist", "YouTube Music", true, "k1", "AAAA"),
             Msg.NowPlaying("Song", "Artist", "YouTube Music", false, "k1", null),
             Msg.NothingPlaying, Msg.Navigate(place), Msg.Navigate(LinkPlace("-33.8,151.0", "-33.8,151.0")),
@@ -39,6 +39,17 @@ class LinkProtoTest {
         assertFalse(LinkProtocol.sameMac(a, LinkProtocol.mac("other", "nonce")))
         assertFalse(LinkProtocol.sameMac(a, LinkProtocol.mac("token", "nonce2")))
         assertEquals(6, LinkProtocol.pairCode().length)
+    }
+
+    @Test fun `each side's proof needs the secret and can't stand in for the other side`() {
+        val car = LinkProtocol.carProof("token", "phoneNonce", "carNonce")
+        val phone = LinkProtocol.phoneProof("token", "phoneNonce", "carNonce")
+        assertFalse(LinkProtocol.sameMac(car, phone))
+        assertTrue(LinkProtocol.sameMac(phone, LinkProtocol.phoneProof("token", "phoneNonce", "carNonce")))
+        assertFalse(LinkProtocol.sameMac(phone, LinkProtocol.phoneProof("guess", "phoneNonce", "carNonce")))
+        assertFalse(LinkProtocol.sameMac(phone, LinkProtocol.phoneProof("token", "phoneNonce", "otherCarNonce")))
+        // Messages from an older version (no proof) don't decode, so they can't be mistaken for a valid reply.
+        assertNull(Msg.decode("""{"t":"ok"}"""))
     }
 
     @Test fun `shared maps text splits into name, details and link`() {

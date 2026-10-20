@@ -29,6 +29,7 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.Base64
+import java.util.concurrent.atomic.AtomicInteger
 
 /** The car's dashcam clips, and where to fetch their videos and thumbnails. */
 data class CarClips(val baseUrl: String, val items: List<ClipInfo>, val usedBytes: Long, val limitBytes: Long) {
@@ -94,6 +95,8 @@ object LinkServer {
     private var pairAttempts = 0
     private var server: ServerSocket? = null
     private var serverJob: Job? = null
+    private val pendingLogins = AtomicInteger(0)
+    private const val MAX_PENDING_LOGINS = 4
     @Volatile private var conn: LinkConnection? = null
     private var lastArtKey: String? = null
 
@@ -152,9 +155,25 @@ object LinkServer {
             socket.close()
             return
         }
-        val c = runCatching { LinkConnection(socket) }.getOrElse { socket.close(); return }
+        // Only a few connections may be logging in at once, so a device on the hotspot can't tie the link up.
+        if (pendingLogins.incrementAndGet() > MAX_PENDING_LOGINS) {
+            pendingLogins.decrementAndGet()
+            socket.close()
+            return
+        }
+        val c = runCatching { LinkConnection(socket) }.getOrElse {
+            pendingLogins.decrementAndGet()
+            socket.close()
+            return
+        }
         try {
-            val carName = handshake(c) ?: return
+            val carName = try {
+                c.timeout(LinkProtocol.HANDSHAKE_TIMEOUT_MS)
+                handshake(c)
+            } finally {
+                pendingLogins.decrementAndGet()
+            } ?: return
+            c.timeout(LinkProtocol.TIMEOUT_MS)
             conn?.close()
             conn = c
             lastArtKey = null
@@ -185,11 +204,12 @@ object LinkServer {
         return when (val m = c.read()) {
             is Msg.Auth -> {
                 val token = prefs.getString(K_TOKEN, null)
-                if (token == null || !LinkProtocol.sameMac(m.mac, LinkProtocol.mac(token, nonce))) {
+                if (token == null || !LinkProtocol.sameMac(m.mac, LinkProtocol.carProof(token, nonce, m.carNonce))) {
                     c.send(Msg.Denied("This car isn't paired with ${phoneName()}. Pair again."))
                     null
                 } else {
-                    c.send(Msg.Ok)
+                    // Prove this is the paired phone too, so nothing else can pose as it to the car.
+                    c.send(Msg.Ok(LinkProtocol.phoneProof(token, nonce, m.carNonce)))
                     m.carName.ifBlank { "CarDash" }
                 }
             }
@@ -208,7 +228,8 @@ object LinkServer {
                         val name = m.carName.ifBlank { "CarDash" }
                         prefs.edit().putString(K_TOKEN, token).putString(K_CAR, name).apply()
                         _pairCode.value = null
-                        c.send(Msg.Paired(token))
+                        // The proof shows the car it's talking to the phone that displayed the code.
+                        c.send(Msg.Paired(token, LinkProtocol.phoneProof(code, nonce, m.carNonce)))
                         name
                     }
                 }

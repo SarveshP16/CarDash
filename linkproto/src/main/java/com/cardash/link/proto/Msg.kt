@@ -32,12 +32,17 @@ sealed interface Msg {
     // Handshake
     /** Phone → car, first thing on every connection. */
     data class Challenge(val nonce: String, val phoneName: String) : Msg
-    /** Car → phone: HMAC of the nonce with the token from pairing. */
-    data class Auth(val mac: String, val carName: String) : Msg
+    /**
+     * Car → phone: [mac] is [LinkProtocol.carProof] over both nonces with the token from pairing.
+     * [carNonce] is the car's own challenge, which the phone must answer in [Ok].
+     */
+    data class Auth(val mac: String, val carName: String, val carNonce: String) : Msg
     /** Car → phone: the code shown on the phone, to pair for the first time. */
-    data class Pair(val code: String, val carName: String) : Msg
-    data class Paired(val token: String) : Msg
-    data object Ok : Msg
+    data class Pair(val code: String, val carName: String, val carNonce: String) : Msg
+    /** Phone → car: the new token, and [proof] that the phone knows the code ([LinkProtocol.phoneProof]). */
+    data class Paired(val token: String, val proof: String) : Msg
+    /** Phone → car: [proof] that the phone holds the token too ([LinkProtocol.phoneProof]). */
+    data class Ok(val proof: String) : Msg
     data class Denied(val reason: String) : Msg
     data object Ping : Msg
     data object Pong : Msg
@@ -87,10 +92,10 @@ sealed interface Msg {
         fun encode(msg: Msg): String = JSONObject().apply {
             when (msg) {
                 is Challenge -> put("t", "challenge").put("nonce", msg.nonce).put("phone", msg.phoneName)
-                is Auth -> put("t", "auth").put("mac", msg.mac).put("car", msg.carName)
-                is Pair -> put("t", "pair").put("code", msg.code).put("car", msg.carName)
-                is Paired -> put("t", "paired").put("token", msg.token)
-                Ok -> put("t", "ok")
+                is Auth -> put("t", "auth").put("mac", msg.mac).put("car", msg.carName).put("nonce", msg.carNonce)
+                is Pair -> put("t", "pair").put("code", msg.code).put("car", msg.carName).put("nonce", msg.carNonce)
+                is Paired -> put("t", "paired").put("token", msg.token).put("proof", msg.proof)
+                is Ok -> put("t", "ok").put("proof", msg.proof)
                 is Denied -> put("t", "denied").put("reason", msg.reason)
                 Ping -> put("t", "ping")
                 Pong -> put("t", "pong")
@@ -122,10 +127,10 @@ sealed interface Msg {
             val o = JSONObject(line)
             when (o.getString("t")) {
                 "challenge" -> Challenge(o.getString("nonce"), o.optString("phone"))
-                "auth" -> Auth(o.getString("mac"), o.optString("car"))
-                "pair" -> Pair(o.getString("code"), o.optString("car"))
-                "paired" -> Paired(o.getString("token"))
-                "ok" -> Ok
+                "auth" -> Auth(o.getString("mac"), o.optString("car"), o.getString("nonce"))
+                "pair" -> Pair(o.getString("code"), o.optString("car"), o.getString("nonce"))
+                "paired" -> Paired(o.getString("token"), o.getString("proof"))
+                "ok" -> Ok(o.getString("proof"))
                 "denied" -> Denied(o.optString("reason"))
                 "ping" -> Ping
                 "pong" -> Pong

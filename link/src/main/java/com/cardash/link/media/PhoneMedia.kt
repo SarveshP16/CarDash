@@ -2,7 +2,6 @@ package com.cardash.link.media
 
 import android.content.ComponentName
 import android.content.Context
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
@@ -109,7 +108,7 @@ object PhoneMedia {
 
     private fun appLabel(pkg: String): String = runCatching {
         val pm = app.packageManager
-        pm.getApplicationLabel(pm.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0))).toString()
+        pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
     }.getOrDefault(pkg)
 
     private val isPlaying get() = controller?.playbackState?.state == PlaybackState.STATE_PLAYING

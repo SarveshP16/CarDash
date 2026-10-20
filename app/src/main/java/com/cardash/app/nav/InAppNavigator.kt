@@ -75,7 +75,8 @@ object InAppNavigator {
         _state.value = NavState.Routing(picked?.name ?: label ?: query)
         // A picked suggestion already identifies the place: route by its ID, no extra lookup.
         val place = picked?.let { Place(it.name, 0.0, 0.0, it.placeId) } ?: findPlace(context, query, label)
-        Log.i(TAG, "Destination for '$query': $place")
+        // Not the place itself: logs are readable over USB debugging, and destinations reveal where you go.
+        Log.i(TAG, if (place == null) "Destination not found" else "Destination found")
         if (place == null) {
             _state.value = NavState.Ready
             return "Couldn't find \"$query\""

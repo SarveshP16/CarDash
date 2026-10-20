@@ -45,6 +45,9 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.util.Base64
 
+/** The phone answered but said no (see [LinkClient]: the pairing is kept and it tries again later). */
+private class Refused(reason: String) : IOException(reason)
+
 sealed interface LinkState {
     /** [note]: why, when pairing just failed or the phone forgot this car. */
     data class NotPaired(val note: String? = null) : LinkState
@@ -186,7 +189,10 @@ object LinkClient {
                 session(gateway.first, gateway.second, token, code)
             } catch (e: IOException) {
                 Log.i(TAG, "Link failed: ${e.message}")
-                if (code != null) {
+                if (e is Refused) {
+                    _state.value = LinkState.Searching("Your phone refused the connection: ${e.message}")
+                    retry = NOT_FOUND_RETRY_MS
+                } else if (code != null) {
                     pairCode = null
                     _state.value = LinkState.NotPaired("Couldn't reach CarDash Link. Is this phone on its hotspot?")
                 } else if (_state.value !is LinkState.Connected) {
@@ -225,14 +231,22 @@ object LinkClient {
         val socket = network.socketFactory.createSocket()
         socket.connect(InetSocketAddress(gateway, LinkProtocol.PORT), CONNECT_TIMEOUT_MS)
         val c = LinkConnection(socket)
+        c.timeout(LinkProtocol.HANDSHAKE_TIMEOUT_MS)
         try {
             val challenge = c.read() as? Msg.Challenge ?: throw IOException("No challenge from the phone")
+            // Our own challenge: the phone must answer it, proving it's the paired phone and not just
+            // whatever happens to be the Wi-Fi gateway.
+            val carNonce = LinkProtocol.randomHex(16)
             if (code != null) {
                 pairCode = null
-                c.send(Msg.Pair(code, CAR_NAME))
+                c.send(Msg.Pair(code, CAR_NAME, carNonce))
                 when (val reply = c.read()) {
-                    is Msg.Paired -> SettingsStore.update {
-                        it.copy(linkToken = reply.token, linkPhoneName = challenge.phoneName)
+                    is Msg.Paired -> {
+                        if (!LinkProtocol.sameMac(reply.proof, LinkProtocol.phoneProof(code, challenge.nonce, carNonce))) {
+                            _state.value = LinkState.NotPaired("That device didn't show this code. Pair again.")
+                            return
+                        }
+                        SettingsStore.update { it.copy(linkToken = reply.token, linkPhoneName = challenge.phoneName) }
                     }
                     is Msg.Denied -> {
                         _state.value = LinkState.NotPaired(reply.reason)
@@ -241,21 +255,25 @@ object LinkClient {
                     else -> throw IOException("Unexpected reply to pairing")
                 }
             } else {
-                c.send(Msg.Auth(LinkProtocol.mac(token!!, challenge.nonce), CAR_NAME))
+                c.send(Msg.Auth(LinkProtocol.carProof(token!!, challenge.nonce, carNonce), CAR_NAME, carNonce))
                 when (val reply = c.read()) {
-                    Msg.Ok -> if (SettingsStore.current.linkPhoneName != challenge.phoneName) {
-                        SettingsStore.update { it.copy(linkPhoneName = challenge.phoneName) }
+                    is Msg.Ok -> {
+                        if (!LinkProtocol.sameMac(reply.proof, LinkProtocol.phoneProof(token, challenge.nonce, carNonce))) {
+                            // Not the paired phone: say nothing more and try again later.
+                            throw IOException("The phone couldn't prove it's the paired phone")
+                        }
+                        if (SettingsStore.current.linkPhoneName != challenge.phoneName) {
+                            SettingsStore.update { it.copy(linkPhoneName = challenge.phoneName) }
+                        }
                     }
-                    is Msg.Denied -> {
-                        // The phone forgot this car (or was reset): pairing must be redone.
-                        SettingsStore.update { it.copy(linkToken = null, linkPhoneName = null) }
-                        _state.value = LinkState.NotPaired(reply.reason)
-                        return
-                    }
+                    // Keep the pairing: a refusal can come from an out-of-date app during an update, or from
+                    // something only pretending to be the phone. Only Settings → Unpair forgets the phone.
+                    is Msg.Denied -> throw Refused(reply.reason)
                     else -> throw IOException("Unexpected reply to auth")
                 }
             }
 
+            c.timeout(LinkProtocol.TIMEOUT_MS)
             conn = c
             _state.value = LinkState.Connected(challenge.phoneName)
             Log.i(TAG, "Connected to ${challenge.phoneName}")

@@ -57,18 +57,14 @@ fun NavigationSection(s: Settings) {
             InAppNavigator.setVoice(v)
         }
     }
-    s.destinations.forEachIndexed { index, dest ->
-        OutlinedTextField(
-            value = dest.address,
-            onValueChange = { address ->
-                SettingsStore.update { st ->
-                    st.copy(destinations = st.destinations.toMutableList().also { it[index] = dest.copy(address = address) })
-                }
-            },
-            label = { Text("${dest.label} address") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
+    OutlinedTextField(
+        value = s.home.address,
+        // Typing replaces any saved place ID: the text is now what gets routed to.
+        onValueChange = { address -> SettingsStore.update { it.copy(home = it.home.copy(address = address, placeId = null)) } },
+        label = { Text("Home address") },
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+        modifier = Modifier.fillMaxWidth(),
+    )
+    FavouritesEditor(s)
 }

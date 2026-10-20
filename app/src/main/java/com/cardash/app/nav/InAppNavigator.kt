@@ -65,11 +65,16 @@ object InAppNavigator {
     }
 
     /** Finds [query] and starts guidance. Returns an error message to show, or null on success. */
-    suspend fun navigateTo(context: Context, query: String, picked: PlacesSearch.Suggestion? = null): String? {
+    suspend fun navigateTo(
+        context: Context,
+        query: String,
+        picked: PlacesSearch.Suggestion? = null,
+        label: String? = null,
+    ): String? {
         val n = navigator ?: return "Navigation isn't ready yet"
-        _state.value = NavState.Routing(picked?.name ?: query)
+        _state.value = NavState.Routing(picked?.name ?: label ?: query)
         // A picked suggestion already identifies the place: route by its ID, no extra lookup.
-        val place = picked?.let { Place(it.name, 0.0, 0.0, it.placeId) } ?: findPlace(context, query)
+        val place = picked?.let { Place(it.name, 0.0, 0.0, it.placeId) } ?: findPlace(context, query, label)
         Log.i(TAG, "Destination for '$query': $place")
         if (place == null) {
             _state.value = NavState.Ready
@@ -113,9 +118,9 @@ object InAppNavigator {
     }
 
     /** Businesses by name via Places; plain addresses via the built-in geocoder as a fallback. */
-    private suspend fun findPlace(context: Context, query: String): Place? {
+    private suspend fun findPlace(context: Context, query: String, label: String?): Place? {
         // Pasted coordinates are routed to directly: no search, no Places request.
-        Coordinates.parse(query)?.let { return Place(it.toString(), it.lat, it.lon, null) }
+        Coordinates.parse(query)?.let { return Place(label ?: it.toString(), it.lat, it.lon, null) }
         val near = LocationRepository.fix.value
         PlacesSearch.search(context, query, near)?.let { results ->
             val best = Geocoding.nearest(results.map { Triple(it, it.lat, it.lon) }, near)

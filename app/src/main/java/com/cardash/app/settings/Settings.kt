@@ -31,6 +31,8 @@ data class Settings(
     /** Delete the oldest unlocked clips once they pass [dashcamLimitGb]. */
     val dashcamLoop: Boolean = true,
     val dashcamLimitGb: Int = 8,
+    /** Record sound with the video. Off by default: it records conversations in the car. */
+    val dashcamAudio: Boolean = false,
 
     /** Package the now-playing card opens; null = auto-detect YouTube Music. */
     val musicPackage: String? = null,
@@ -43,7 +45,15 @@ data class Settings(
     val navApp: NavApp = NavApp.GOOGLE_MAPS,
     /** Spoken turn-by-turn directions during in-app navigation. Off: on-screen guidance only. */
     val voiceGuidance: Boolean = false,
-    val destinations: List<Destination> = listOf(Destination("Home", ""), Destination("Work", "")),
+    val home: Destination = Destination("Home", ""),
+    /** Saved places shown under the Fav tile, in the order they were added. */
+    val favourites: List<Destination> = emptyList(),
+    /** Last places routed to, newest first (shown in CarDash Link). */
+    val recents: List<Destination> = emptyList(),
+
+    /** CarDash Link: the secret agreed when pairing with the main phone; null = not paired. */
+    val linkToken: String? = null,
+    val linkPhoneName: String? = null,
 
     /** Pause charging at [chargeLimit]% and resume 5% below it (needs root). */
     val chargeLimitEnabled: Boolean = true,

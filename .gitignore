@@ -10,3 +10,4 @@ captures/
 *.apk
 *.keystore
 *.jks
+hs_err_pid*.log

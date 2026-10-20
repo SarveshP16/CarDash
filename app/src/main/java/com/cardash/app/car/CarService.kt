@@ -16,6 +16,7 @@ import com.cardash.app.battery.BatteryRepository
 import com.cardash.app.battery.ChargeLimiter
 import com.cardash.app.battery.HeatLevel
 import com.cardash.app.battery.HeatRules
+import com.cardash.app.link.LinkClient
 import com.cardash.app.notifications.Notifications
 import com.cardash.app.settings.SettingsStore
 import kotlinx.coroutines.CoroutineScope
@@ -84,6 +85,8 @@ class CarService : Service() {
             updateSignals { it.copy(powered = BatteryRepository.info.value.plugged) }
         }
         checkCarBluetoothConnected()
+        // CarDash Link: connects to the main phone whenever this phone is on its hotspot.
+        LinkClient.start(this)
 
         // A hold left over from before a restart: turn charging back on, the limiter re-pauses if needed.
         scope.launch { ChargeLimiter.release(this@CarService) }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dashcam videos stream from the car phone over plain HTTP on the hotspot (its address changes,
+     so it can't be listed by name here). Everything else, like resolving Maps links, uses HTTPS. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

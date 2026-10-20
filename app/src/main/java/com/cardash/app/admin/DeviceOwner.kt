@@ -27,6 +27,18 @@ object DeviceOwner {
 
     private fun dpm(context: Context) = context.getSystemService(DevicePolicyManager::class.java)
 
+    /** Grants one runtime permission on demand (e.g. the microphone when dashcam sound is switched on). */
+    fun grant(context: Context, permission: String): Boolean {
+        if (context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) return true
+        if (!isOwner(context)) return false
+        return runCatching {
+            dpm(context).setPermissionGrantState(
+                AdminReceiver.component(context), context.packageName, permission,
+                DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED,
+            )
+        }.getOrDefault(false)
+    }
+
     fun isOwner(context: Context): Boolean = dpm(context).isDeviceOwnerApp(context.packageName)
 
     fun isAdmin(context: Context): Boolean = dpm(context).isAdminActive(AdminReceiver.component(context))

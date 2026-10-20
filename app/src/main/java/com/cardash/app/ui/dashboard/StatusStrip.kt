@@ -18,6 +18,7 @@ import com.cardash.app.battery.BatteryRepository
 import com.cardash.app.battery.ChargeLimiter
 import com.cardash.app.battery.HeatLevel
 import com.cardash.app.battery.HeatRules
+import com.cardash.app.camera.CameraRecordService
 import com.cardash.app.settings.SettingsStore
 import com.cardash.app.theme.HeatColors
 import kotlinx.coroutines.delay
@@ -27,9 +28,12 @@ import java.time.format.DateTimeFormatter
 private val ClockFormat = DateTimeFormatter.ofPattern("h:mm")
 private val DayFormat = DateTimeFormatter.ofPattern("EEE d MMM")
 
-/** Big light clock; date, battery and temperature small on the right (temperature turns amber/red when hot). */
+/**
+ * Big light clock; date, battery and temperature small on the right (temperature turns amber/red when hot).
+ * [compact]: smaller, for the narrow sidebar while navigating.
+ */
 @Composable
-fun StatusStrip(modifier: Modifier = Modifier) {
+fun StatusStrip(modifier: Modifier = Modifier, compact: Boolean = false) {
     val now by produceState(LocalDateTime.now()) {
         while (true) {
             value = LocalDateTime.now()
@@ -38,8 +42,11 @@ fun StatusStrip(modifier: Modifier = Modifier) {
     }
     val battery by BatteryRepository.info.collectAsStateWithLifecycle()
     val holding by ChargeLimiter.holding.collectAsStateWithLifecycle()
+    val recording by CameraRecordService.recordingSide.collectAsStateWithLifecycle()
     val settings by SettingsStore.settings.collectAsStateWithLifecycle()
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val clockSize = if (compact) 30.sp else 46.sp
+    val small = if (compact) 12.sp else 14.sp
     val tempColor = when (HeatRules.level(battery.tempC, settings.heatWarnC)) {
         HeatLevel.NORMAL -> muted
         HeatLevel.HOT -> HeatColors.Hot
@@ -49,13 +56,19 @@ fun StatusStrip(modifier: Modifier = Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Text(
             now.format(ClockFormat),
-            fontSize = 46.sp,
-            lineHeight = 46.sp,
+            fontSize = clockSize,
+            lineHeight = clockSize,
             fontWeight = FontWeight.Light,
             color = MaterialTheme.colorScheme.onBackground,
         )
         Column(horizontalAlignment = Alignment.End) {
-            Text(now.format(DayFormat), fontSize = 14.sp, color = muted, textAlign = TextAlign.End)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Status icons before the date: red REC while the dashcam records.
+                if (recording != null) {
+                    Text(if (compact) "● " else "● REC  ", fontSize = small, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Medium)
+                }
+                Text(now.format(DayFormat), fontSize = small, color = muted, textAlign = TextAlign.End, maxLines = 1)
+            }
             Row {
                 // ⏸ = charge limit reached, running on battery until it drops 5%.
                 val charge = when {
@@ -63,8 +76,8 @@ fun StatusStrip(modifier: Modifier = Modifier) {
                     battery.plugged -> " ⚡"
                     else -> ""
                 }
-                Text("${battery.levelPercent}%$charge · ", fontSize = 14.sp, color = muted)
-                Text("%.0f°".format(battery.tempC), fontSize = 14.sp, color = tempColor)
+                Text("${battery.levelPercent}%$charge · ", fontSize = small, color = muted, maxLines = 1)
+                Text("%.0f°".format(battery.tempC), fontSize = small, color = tempColor, maxLines = 1)
             }
         }
     }

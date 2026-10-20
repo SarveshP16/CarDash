@@ -28,6 +28,8 @@ object SettingsStore {
 
     private fun read(): Settings {
         val d = Settings()
+        // Before Home | Fav, there was a fixed Home/Work list.
+        val legacy = prefs.getString(K_LEGACY_DESTINATIONS, null)?.let(Destination::decodeList).orEmpty()
         return Settings(
             carBluetoothAddress = prefs.getString(K_BT_ADDR, null),
             carBluetoothName = prefs.getString(K_BT_NAME, null),
@@ -44,14 +46,21 @@ object SettingsStore {
             dashcamBackCamera = prefs.getBoolean(K_DASH_BACK, d.dashcamBackCamera),
             dashcamLoop = prefs.getBoolean(K_DASH_LOOP, d.dashcamLoop),
             dashcamLimitGb = prefs.getInt(K_DASH_LIMIT, d.dashcamLimitGb),
+            dashcamAudio = prefs.getBoolean(K_DASH_AUDIO, d.dashcamAudio),
             musicPackage = prefs.getString(K_MUSIC_PKG, null),
             resumeMusicOnCarOn = prefs.getBoolean(K_RESUME_MUSIC, d.resumeMusicOnCarOn),
             voiceGuidance = prefs.getBoolean(K_VOICE, d.voiceGuidance),
             navigateInApp = prefs.getBoolean(K_IN_APP, d.navigateInApp),
             navApp = prefs.getString(K_NAV_APP, null)
                 ?.let { runCatching { NavApp.valueOf(it) }.getOrNull() } ?: d.navApp,
-            destinations = prefs.getString(K_DESTINATIONS, null)
-                ?.let(Destination::decodeList) ?: d.destinations,
+            home = prefs.getString(K_HOME, null)?.let(Destination::decodeList)?.firstOrNull()
+                ?: legacy.firstOrNull { it.label.equals("Home", true) } ?: d.home,
+            favourites = prefs.getString(K_FAVOURITES, null)?.let(Destination::decodeList)
+                // The old Work button becomes the first favourite.
+                ?: legacy.filter { !it.label.equals("Home", true) && it.isSet },
+            recents = prefs.getString(K_RECENTS, null)?.let(Destination::decodeList).orEmpty(),
+            linkToken = prefs.getString(K_LINK_TOKEN, null),
+            linkPhoneName = prefs.getString(K_LINK_PHONE, null),
             chargeLimitEnabled = prefs.getBoolean(K_CHARGE_LIMIT_ON, d.chargeLimitEnabled),
             chargeLimit = prefs.getInt(K_CHARGE_LIMIT, d.chargeLimit),
             heatWarnC = prefs.getInt(K_HEAT_WARN, d.heatWarnC),
@@ -77,12 +86,17 @@ object SettingsStore {
             .putBoolean(K_DASH_BACK, s.dashcamBackCamera)
             .putBoolean(K_DASH_LOOP, s.dashcamLoop)
             .putInt(K_DASH_LIMIT, s.dashcamLimitGb)
+            .putBoolean(K_DASH_AUDIO, s.dashcamAudio)
             .putString(K_MUSIC_PKG, s.musicPackage)
             .putBoolean(K_RESUME_MUSIC, s.resumeMusicOnCarOn)
             .putBoolean(K_VOICE, s.voiceGuidance)
             .putBoolean(K_IN_APP, s.navigateInApp)
             .putString(K_NAV_APP, s.navApp.name)
-            .putString(K_DESTINATIONS, Destination.encodeList(s.destinations))
+            .putString(K_HOME, Destination.encodeList(listOf(s.home)))
+            .putString(K_FAVOURITES, Destination.encodeList(s.favourites))
+            .putString(K_RECENTS, Destination.encodeList(s.recents))
+            .putString(K_LINK_TOKEN, s.linkToken)
+            .putString(K_LINK_PHONE, s.linkPhoneName)
             .putBoolean(K_CHARGE_LIMIT_ON, s.chargeLimitEnabled)
             .putInt(K_CHARGE_LIMIT, s.chargeLimit)
             .putInt(K_HEAT_WARN, s.heatWarnC)
@@ -105,12 +119,18 @@ object SettingsStore {
     private const val K_DASH_BACK = "dashcam.back"
     private const val K_DASH_LOOP = "dashcam.loop"
     private const val K_DASH_LIMIT = "dashcam.limitGb"
+    private const val K_DASH_AUDIO = "dashcam.audio"
     private const val K_MUSIC_PKG = "music.package"
     private const val K_RESUME_MUSIC = "routine.on.resumeMusic"
     private const val K_VOICE = "nav.voice"
     private const val K_IN_APP = "nav.inApp"
     private const val K_NAV_APP = "nav.app"
-    private const val K_DESTINATIONS = "nav.destinations"
+    private const val K_LEGACY_DESTINATIONS = "nav.destinations"
+    private const val K_HOME = "nav.home"
+    private const val K_FAVOURITES = "nav.favourites"
+    private const val K_RECENTS = "nav.recents"
+    private const val K_LINK_TOKEN = "link.token"
+    private const val K_LINK_PHONE = "link.phoneName"
     private const val K_CHARGE_LIMIT_ON = "battery.limit.enabled"
     private const val K_CHARGE_LIMIT = "battery.limit"
     private const val K_HEAT_WARN = "heat.warnC"

@@ -27,6 +27,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyColumn
+import com.cardash.app.ui.components.GoogleMapsAttribution
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,10 +39,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -66,7 +71,11 @@ import androidx.compose.ui.unit.sp
 import com.cardash.app.location.LocationRepository
 import com.cardash.app.nav.Coordinates
 import com.cardash.app.nav.PlacesSearch
+import com.cardash.app.nav.Destination
 import com.cardash.app.nav.RouteStarter
+import com.cardash.app.settings.Favourites
+import com.cardash.app.settings.SettingsStore
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.cardash.app.ui.components.TileShape
 import kotlinx.coroutines.delay
 
@@ -130,6 +139,8 @@ private fun SearchDialog(
     var suggestions by remember { mutableStateOf(emptyList<PlacesSearch.Suggestion>()) }
     // One token per opening: Google groups this search's keystrokes into a single session.
     val session = remember { PlacesSearch.newSession() }
+    val settings by SettingsStore.settings.collectAsStateWithLifecycle()
+    val savedIds = settings.favourites.mapNotNull { it.placeId }.toSet()
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
 
@@ -155,6 +166,7 @@ private fun SearchDialog(
                 .background(Color.Black.copy(alpha = 0.45f))
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
         ) {
+            CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
             Column(
                 Modifier.fillMaxHeight().fillMaxWidth(0.45f)
                     .background(MaterialTheme.colorScheme.background)
@@ -194,9 +206,11 @@ private fun SearchDialog(
                 }
                 LazyColumn(Modifier.fillMaxWidth().weight(1f).padding(top = 8.dp)) {
                     items(suggestions, key = { it.placeId }) { s ->
-                        SuggestionRow(s) { onSearch(s.name, s) }
+                        SuggestionRow(s, saved = savedIds.contains(s.placeId)) { onSearch(s.name, s) }
                     }
+                    if (suggestions.isNotEmpty()) item { GoogleMapsAttribution() }
                 }
+            }
             }
         }
     }
@@ -205,7 +219,8 @@ private fun SearchDialog(
 private const val SUGGEST_DEBOUNCE_MS = 300L
 
 @Composable
-private fun SuggestionRow(s: PlacesSearch.Suggestion, onClick: () -> Unit) {
+private fun SuggestionRow(s: PlacesSearch.Suggestion, saved: Boolean, onClick: () -> Unit) {
+    val context = LocalContext.current
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp),
@@ -219,6 +234,22 @@ private fun SuggestionRow(s: PlacesSearch.Suggestion, onClick: () -> Unit) {
             }
         }
         s.distanceMeters?.let { Text(formatDistance(it), fontSize = 13.sp, color = muted) }
+        // ☆ saves this place to Fav (filled ★ when it's already saved; tap again to remove).
+        IconButton(onClick = {
+            val place = Destination(s.name, s.fullText, s.placeId)
+            if (saved) {
+                SettingsStore.current.favourites.firstOrNull { it.placeId == s.placeId }?.let(Favourites::remove)
+                Toast.makeText(context, "Removed ${s.name} from favourites", Toast.LENGTH_SHORT).show()
+            } else if (Favourites.add(place)) {
+                Toast.makeText(context, "Saved ${s.name} to favourites", Toast.LENGTH_SHORT).show()
+            }
+        }) {
+            Icon(
+                if (saved) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                if (saved) "Remove from favourites" else "Save to favourites",
+                tint = if (saved) MaterialTheme.colorScheme.primary else muted,
+            )
+        }
     }
 }
 

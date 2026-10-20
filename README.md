@@ -1,65 +1,79 @@
 # CarDash
 
-A home-screen app that turns an old phone (a OnePlus 5 running an Android 13 custom ROM) into a car dashboard. It is sideloaded, not published.
+Turns a spare Android phone into a car dashboard, with a companion app for your main phone.
 
-## What it does
+- **CarDash** (`app/`) runs on the car phone (built for a OnePlus 5 on an Android 13 custom ROM, landscape). It's the phone's home screen.
+- **CarDash Link** (`link/`) runs on your main phone (Android 12+, tested on Android 16). It talks to the car phone over your main phone's hotspot.
+- **`linkproto/`** is the small protocol library both apps share.
 
-- **Home screen:** the app is the phone's launcher, laid out for landscape. It has an Apps drawer and a Settings screen.
-- **Car on/off detection:** either the charger or the car's hands-free Bluetooth turns the car "on". "Off" happens once both signals are gone for 20 seconds; the delay covers the USB power dip while the engine cranks. If your socket stays powered with the engine off, turn on *Charger stays on with engine off* in Settings, and Bluetooth alone decides.
-- **Car On routine:** turns on Bluetooth and Wi-Fi (to join your phone's hotspot), Do Not Disturb and auto brightness, then wakes the screen and shows the dashboard. If music was playing when the car turned off, it resumes after 3 seconds. The screen stays on while the car is on.
-- **Car Off routine:** pauses media, turns off DND and Wi-Fi, and turns the screen off. Bluetooth stays on, because the app needs it to detect the car next time.
-- **Dashboard:**
-  - A live Google map (Maps SDK for Android) that follows the car, turns with the direction of travel and shows traffic, with the GPS speed overlaid. Dragging the map pauses following; the location button resumes it. It switches to a dark map at night.
-  - An "Open Google Maps" tile for navigation. Without a Maps API key, a big speedometer replaces the map.
-  - A now-playing card that works with any player. Tapping the art opens the music app: YouTube Music, auto-detected even when Morphe/ReVanced-patched, or any app picked in Settings.
-  - One-tap Home/Work buttons that open Google Maps (or Waze) already navigating.
-  - Quick toggles, a clock, battery level and battery temperature.
-- **Heat alert:** a banner and a notification when the battery reaches the warning temperature (45 °C by default, adjustable), and a critical alert 5 °C above that.
-- **Day/night theme:** switches automatically at sunrise and sunset for your GPS position. It can be forced to Day or Night.
-- **Manual car mode:** the power button among the quick toggles forces On or Off, so you can test without the car. The next real charger or Bluetooth change hands control back to automatic detection.
+Both apps are sideloaded, not published.
 
-## Why some choices are unusual
+## CarDash (car phone)
 
-- **`targetSdk = 28` (Android 9):** `setWifiEnabled()` and `BluetoothAdapter.enable()` only work for apps that target API 28 or lower. That's fine for a sideloaded app, but never publish this one.
-- **Device Owner:** this lets the app:
-  - remove the lock screen,
-  - turn the screen off (`lockNow`),
-  - grant its own location permission,
-  - pin itself as the home app.
+- **Car on/off detection.** The charger (and optionally the car's Bluetooth) turns the car "on". "Off" waits until the signals have been gone for 20 seconds, to ride out the power dip while the engine cranks.
+- **Car On routine.** Wi-Fi on (to join the main phone's hotspot), Do Not Disturb, auto brightness, screen on, dashboard to the front, dashcam on, and music resumes if it was playing at Car Off.
+- **Car Off routine.** Pauses music, stops navigation and the dashcam, turns Wi-Fi off, shows a parked screen, then turns the screen off.
+- **Dashboard.** A Google map with in-app turn-by-turn navigation (Google Navigation SDK) and place search with live suggestions. The map takes 60% of the screen, or 75% while a route runs. Alongside it:
+  - now playing (this phone's player, or the main phone's through Link);
+  - Maps | Home | Fav, where Fav holds saved places;
+  - quick toggles;
+  - front/back dashcam buttons;
+  - clock, battery and temperature.
+- **Navigate with CarDash, Google Maps or Waze.** If in-app routing fails, it hands off to the chosen app. You can paste coordinates or Google Maps links into the search box.
+- **Dashcam.** Front or back camera, 3-minute clips in `Movies/CarDash`, loop recording within a size limit, and a hard jolt locks the current clip. Sound is optional and off by default.
+- **Charge limit (root).** Pauses charging at 80% and resumes at 75%, to spare a battery that lives in a hot car.
+- **Heat alert.** Shows a banner and notification when the battery gets hot.
+- **Day/night theme.** Follows sunset at your GPS position.
+- **Settings in tabs.** Car, Navigation, Music, Phone link, Dashcam, Battery and System.
 
-  Device Owner can only be set while the phone has **no accounts**. Once it's set, you can sign in to Google and use the Play Store as normal.
-- **Platform `LocationManager` instead of Play services:** the app doesn't depend on Google.
-- **Airplane mode blocks the Wi-Fi steps:** while it's on, Android lets only the Settings app toggle Wi-Fi. With no SIM in the phone, keep it off.
+## CarDash Link (main phone)
+
+- **Send places to the car.** In Google Maps tap **Share → Send to car**, and the car starts the route. `maps.app.goo.gl` links are followed to the exact spot. If the car isn't connected yet, the place is queued until it is.
+- **Search, Home, favourites and recents** on your phone. Searches run on the car phone's API key, so the main phone needs no key.
+- **Music.** The car shows what's playing on your main phone, for example through a Bluetooth AUX receiver, and its buttons control it. Car Off pauses it, and Car On resumes it once the car's Bluetooth audio is back.
+- **Dashcam clips.** Browse the car's clips by day, stream them with seeking, save them to the phone, and lock or delete them.
+- **Battery-friendly.** The link only runs while your hotspot is on. Pairing is done once, with a 6-digit code.
 
 ## Google Maps API key
 
-The in-dashboard map needs a key for **Maps SDK for Android**. Mobile map loads are free, but Google requires a billing account.
+The map, in-app navigation and place search need a Google Maps Platform key with billing enabled. The free monthly allowances cover personal use. CarDash Link needs no key.
 
-1. In Google Cloud, enable **Maps SDK for Android** and create an API key.
-2. Restrict the key to Android apps (package `com.cardash.app` plus the SHA-1 of the signing key) and to Maps SDK for Android only.
-3. Add `MAPS_API_KEY=...` to `local.properties`. The file is git-ignored, so the key never reaches the repo.
+1. In Google Cloud, enable **Maps SDK for Android**, **Navigation SDK** and **Places API (New)**, then create an API key.
+2. Restrict the key to Android apps (package `com.cardash.app` plus the SHA-1 of your signing key) and to those three APIs.
+3. Add `MAPS_API_KEY=...` to `local.properties` in the project root. That file is git-ignored, so the key never reaches the repository.
+
+Without a key, CarDash still works: a speedometer replaces the map, and routes open in Google Maps or Waze.
 
 ## Setup
 
-1. Factory-reset the phone and skip Google sign-in.
-2. Enable Developer options, then USB debugging.
-3. From this folder, in Git Bash:
+**Car phone.** Factory-reset it and skip Google sign-in: Device Owner can only be set on a phone with no accounts. Enable USB debugging, plug it in, then run this from Git Bash:
 
 ```bash
 ./setup.sh --build
 ```
 
-The script:
-- installs the APK and makes the app Device Owner,
-- grants location, media-session access, Do Not Disturb access and WRITE_SETTINGS,
-- excludes the app from battery optimisation,
-- sets it as the home app and removes the lock screen.
+This installs CarDash, makes it Device Owner and the home screen, and grants its permissions. Once that's done, you can sign in to Google and install Google Maps and YouTube Music.
 
-4. On the phone, open **Settings** (the gear icon), pick the car's Bluetooth device and enter your destinations.
+**Main phone.** Enable USB debugging, plug it in, then run:
 
-## Undo
+```bash
+./setup-link.sh --build
+```
 
-Use **Settings → Release Device Owner…** on the phone. After that you can uninstall the app normally. A Device Owner app can't be uninstalled until it's released, or the phone is factory-reset.
+Turn on the hotspot and join the car phone to it. Then tap **Pair** in CarDash Link and enter the code on the car phone under **Settings → Phone link**.
+
+**Removing CarDash.** Use **Settings → System → Release Device Owner…** on the car phone first. A Device Owner app can't be uninstalled until it's released.
+
+## Why some choices are unusual
+
+- **Device Owner.** This lets CarDash:
+  - remove the lock screen and turn the screen off;
+  - toggle Wi-Fi and Bluetooth (blocked for normal apps since Android 10);
+  - grant its own permissions;
+  - pin itself as the home app;
+  - start the dashcam from the background.
+- **Root (Magisk)** is only used for the charge limit, which writes to `/sys/class/power_supply/battery/charging_enabled`. On the OnePlus 5 this also cuts USB power, so the phone runs on battery while it holds at 80%.
+- **The link runs over the hotspot, not the internet.** The main phone listens; the car phone connects to its hotspot gateway and answers an HMAC challenge using the token agreed at pairing. Clip videos stream over plain HTTP from the car phone, using a random key that changes every connection. Both stay on your own hotspot.
 
 ## Build and test
 
@@ -67,4 +81,12 @@ Use **Settings → Release Device Owner…** on the phone. After that you can un
 ./gradlew assembleDebug testDebugUnitTest
 ```
 
-The unit tests cover the car on/off logic, sunrise/sunset times, heat levels, speed rounding, destination storage and YouTube Music detection.
+The APKs end up in `app/build/outputs/apk/debug/` and `link/build/outputs/apk/debug/`. The unit tests cover:
+- car on/off logic, the charge limiter and dashcam loop cleanup;
+- sunrise/sunset times;
+- coordinate and Google Maps link parsing, and geocoding choice;
+- the link protocol, share parsing and HTTP byte ranges.
+
+## Attribution
+
+Maps, navigation and place search are provided by Google Maps Platform under its [Terms of Service](https://cloud.google.com/maps-platform/terms). Both apps list their open-source licences in-app (CarDash: Settings → System → Open-source licences; Link: About & licences). The Lexend font is used under the SIL Open Font License; see [`licenses/Lexend-OFL.txt`](licenses/Lexend-OFL.txt).

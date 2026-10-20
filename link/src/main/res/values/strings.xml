@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CarDash Link</string>
+    <string name="share_label">Send to car</string>
+    <string name="channel_link">Car link</string>
+</resources>

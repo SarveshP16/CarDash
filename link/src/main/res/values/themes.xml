@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.CarDashLink" parent="android:Theme.Material.NoActionBar" />
+    <!-- The share target shows no window of its own: it sends the place and closes. -->
+    <style name="Theme.CarDashLink.Share" parent="android:Theme.Translucent.NoTitleBar" />
+</resources>

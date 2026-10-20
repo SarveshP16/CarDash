@@ -7,18 +7,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.cardash.app.battery.ChargeLimiter
 import com.cardash.app.settings.Settings
 import com.cardash.app.settings.SettingsStore
 import com.cardash.app.settings.ThemeMode
-import com.cardash.app.battery.ChargeLimiter
-import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlin.math.roundToInt
 
 @Composable
-fun DisplaySection(s: Settings) {
+fun ThemeSection(s: Settings) {
     SectionTitle("Theme")
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ThemeMode.entries.forEach { mode ->
@@ -37,8 +37,12 @@ fun DisplaySection(s: Settings) {
             )
         }
     }
+}
 
-    SectionTitle("Battery")
+/** Charge limit (root) and the battery heat alert. */
+@Composable
+fun BatterySection(s: Settings) {
+    SectionTitle("Charge limit")
     val rootFailed by ChargeLimiter.rootFailed.collectAsStateWithLifecycle()
     SwitchRow(
         "Limit charging to ${s.chargeLimit}%",

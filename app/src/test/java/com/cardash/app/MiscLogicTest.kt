@@ -38,4 +38,10 @@ class MiscLogicTest {
         assertEquals("com.google.android.apps.youtube.music", MusicApp.pickYouTubeMusic(pkgs.take(1)))
         assertNull(MusicApp.pickYouTubeMusic(listOf("com.android.chrome")))
     }
+
+    @Test fun `favourite with place id round-trips and hands off without repeating the name`() {
+        val fav = Destination("Westfield Parramatta", "Westfield Parramatta, Church Street, Parramatta", "ChIJabc")
+        assertEquals(listOf(fav), Destination.decodeList(Destination.encodeList(listOf(fav))))
+        assertEquals("Westfield Parramatta, Church Street, Parramatta", fav.asSuggestion()!!.fullText)
+    }
 }

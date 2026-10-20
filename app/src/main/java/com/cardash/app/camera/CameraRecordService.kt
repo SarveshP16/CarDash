@@ -1,6 +1,7 @@
 package com.cardash.app.camera
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -55,6 +56,8 @@ class CameraRecordService : LifecycleService() {
     private var capture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
     private var side: CamSide? = null
+    /** Sound is recorded with this recording (setting on and microphone granted). */
+    private var audio = false
     private var rotation: Job? = null
     /** Set by an impact; the current segment is renamed "_locked" when it finishes. */
     private var lockCurrent = false
@@ -127,6 +130,13 @@ class CameraRecordService : LifecycleService() {
             stopIfIdle()
             return
         }
+        audio = SettingsStore.current.dashcamAudio &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        // The microphone needs its own foreground-service type while sound is recorded.
+        ServiceCompat.startForeground(
+            this, Notifications.RECORDING_ID, Notifications.recording(this, "Recording: ${requested.label.lowercase()}"),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or (if (audio) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0),
+        )
         capture = videoCapture
         side = requested
         _recordingSide.value = requested
@@ -150,7 +160,9 @@ class CameraRecordService : LifecycleService() {
             .setContentValues(values)
             .build()
         lockCurrent = false
-        recording = videoCapture.output.prepareRecording(this, output).start(ContextCompat.getMainExecutor(this)) { event ->
+        @SuppressLint("MissingPermission") // Checked in start(): audio is only set with RECORD_AUDIO granted.
+        val pending = videoCapture.output.prepareRecording(this, output).apply { if (audio) withAudioEnabled() }
+        recording = pending.start(ContextCompat.getMainExecutor(this)) { event ->
             if (event is VideoRecordEvent.Finalize) onSegmentFinished(event)
         }
         rotation?.cancel()

@@ -93,21 +93,22 @@ fun SystemToggleRow(modifier: Modifier = Modifier) {
 /** Row two: front and back camera recording (red while recording), apps and settings. */
 @Composable
 fun CameraAppsRow(onOpenApps: () -> Unit, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val recording by CameraRecordService.recordingSide.collectAsStateWithLifecycle()
-    val red = MaterialTheme.colorScheme.error
-
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         val tile = Modifier.weight(1f).fillMaxHeight()
-        BigIconButton(
-            Icons.Filled.CameraFront, null, tile,
-            container = if (recording == CamSide.FRONT) red else null,
-        ) { CameraRecordService.toggle(context, CamSide.FRONT) }
-        BigIconButton(
-            Icons.Filled.CameraRear, null, tile,
-            container = if (recording == CamSide.BACK) red else null,
-        ) { CameraRecordService.toggle(context, CamSide.BACK) }
+        CameraButton(CamSide.FRONT, tile)
+        CameraButton(CamSide.BACK, tile)
         BigIconButton(Icons.Filled.Apps, null, tile, onClick = onOpenApps)
         BigIconButton(Icons.Filled.Settings, null, tile, onClick = onOpenSettings)
     }
+}
+
+/** Starts/stops recording on that camera; red while it's recording. */
+@Composable
+fun CameraButton(side: CamSide, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val recording by CameraRecordService.recordingSide.collectAsStateWithLifecycle()
+    BigIconButton(
+        if (side == CamSide.FRONT) Icons.Filled.CameraFront else Icons.Filled.CameraRear, null, modifier,
+        container = if (recording == side) MaterialTheme.colorScheme.error else null,
+    ) { CameraRecordService.toggle(context, side) }
 }

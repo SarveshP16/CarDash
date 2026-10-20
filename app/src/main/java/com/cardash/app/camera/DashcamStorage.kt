@@ -6,6 +6,10 @@ import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
+import com.cardash.link.proto.ClipInfo
+import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * Loop recording for Movies/CarDash: once unlocked clips pass the size limit, the oldest are
@@ -53,6 +57,73 @@ object DashcamStorage {
             context.contentResolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.DISPLAY_NAME, locked) }, null, null)
         }.onFailure { Log.w(TAG, "Couldn't lock $uri", it) }
     }
+
+    // ---- For CarDash Link (browsing clips from the main phone) ----
+
+    /** Finished clips, newest first. Clips still being recorded are pending in MediaStore and not listed. */
+    fun listForLink(context: Context): List<ClipInfo> {
+        val projection = arrayOf(
+            MediaStore.MediaColumns._ID, MediaStore.MediaColumns.SIZE, MediaStore.MediaColumns.DATE_ADDED,
+            MediaStore.MediaColumns.DISPLAY_NAME, MediaStore.Video.VideoColumns.DURATION,
+        )
+        val out = mutableListOf<ClipInfo>()
+        context.contentResolver.query(
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, SELECTION, arrayOf(FOLDER, "CarDash_%"), null,
+        )?.use { c ->
+            while (c.moveToNext()) {
+                val name = c.getString(3)
+                out += ClipInfo(
+                    id = c.getLong(0),
+                    side = if (name.startsWith("CarDash_front")) "front" else "back",
+                    startMillis = startFromName(name) ?: (c.getLong(2) * 1000),
+                    durationMs = c.getLong(4),
+                    sizeBytes = c.getLong(1),
+                    locked = name.contains(LOCKED_SUFFIX),
+                )
+            }
+        }
+        return out.sortedByDescending { it.startMillis }
+    }
+
+    fun uri(id: Long): Uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
+
+    /** Locks or unlocks a clip by renaming it. Returns false if it's gone or isn't a dashcam clip. */
+    fun setLocked(context: Context, id: Long, locked: Boolean): Boolean {
+        if (locked) {
+            lock(context, uri(id))
+            return true
+        }
+        return runCatching {
+            val name = displayName(context, id) ?: return false
+            context.contentResolver.update(
+                uri(id),
+                ContentValues().apply { put(MediaStore.MediaColumns.DISPLAY_NAME, name.replace(LOCKED_SUFFIX, "")) },
+                null, null,
+            ) > 0
+        }.getOrDefault(false)
+    }
+
+    fun delete(context: Context, id: Long): Boolean {
+        // Only ever touch our own dashcam clips, whatever ID the phone sends.
+        if (displayName(context, id)?.startsWith("CarDash_") != true) return false
+        return runCatching { context.contentResolver.delete(uri(id), null, null) > 0 }.getOrDefault(false)
+    }
+
+    /** The clip's file name, or null if [id] isn't one of the dashcam clips. */
+    fun displayName(context: Context, id: Long): String? = context.contentResolver.query(
+        MediaStore.Video.Media.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME),
+        "${MediaStore.MediaColumns._ID} = ? AND $SELECTION", arrayOf(id.toString(), FOLDER, "CarDash_%"), null,
+    )?.use { if (it.moveToFirst()) it.getString(0) else null }
+
+    /** "CarDash_back_20261019_214500_locked.mp4" → when that clip started, in the phone's time zone. */
+    fun startFromName(name: String): Long? = runCatching {
+        val stamp = Regex("""_(\d{8}_\d{6})""").find(name)?.groupValues?.get(1) ?: return null
+        LocalDateTime.parse(stamp, NAME_TIME).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    }.getOrNull()
+
+    private val NAME_TIME = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
+    private const val SELECTION =
+        "${MediaStore.MediaColumns.RELATIVE_PATH} = ? AND ${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?"
 
     private fun queryClips(context: Context): List<Clip> {
         val projection = arrayOf(

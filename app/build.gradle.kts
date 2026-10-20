@@ -62,6 +62,9 @@ android {
 }
 
 dependencies {
+    // CarDash Link: the protocol shared with the main phone's app.
+    implementation(project(":linkproto"))
+
     val composeBom = platform("androidx.compose:compose-bom:2026.06.01")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
@@ -92,4 +95,5 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-service:2.10.0")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

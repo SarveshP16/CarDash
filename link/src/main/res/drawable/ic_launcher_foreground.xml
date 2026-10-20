@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A phone sending to the car: phone outline with two teal signal arcs. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M40,36 h16 a4,4 0 0 1 4,4 v28 a4,4 0 0 1 -4,4 h-16 a4,4 0 0 1 -4,-4 v-28 a4,4 0 0 1 4,-4 z"
+        android:strokeWidth="5"
+        android:strokeColor="#FFFFFF"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M66,46 a10,10 0 0 1 0,16"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeColor="#4FD1C5"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M72,40 a18,18 0 0 1 0,28"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeColor="#4FD1C5"
+        android:fillColor="#00000000" />
+</vector>

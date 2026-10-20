@@ -9,6 +9,7 @@ import com.cardash.app.MainActivity
 import com.cardash.app.admin.DeviceOwner
 import com.cardash.app.camera.CamSide
 import com.cardash.app.camera.CameraRecordService
+import com.cardash.app.link.LinkClient
 import com.cardash.app.media.MusicApp
 import com.cardash.app.media.NowPlayingRepository
 import com.cardash.app.nav.InAppNavigator
@@ -19,6 +20,7 @@ import com.cardash.app.system.SystemToggles
 object CarRoutines {
     private const val RESUME_DELAY_MS = 3_000L
     private const val DASHCAM_DELAY_MS = 2_000L
+    private const val WIFI_OFF_DELAY_MS = 2_000L
 
     fun onCarOn(context: Context, s: Settings) {
         // Bluetooth stays on permanently: it's one of the car-detection signals.
@@ -35,6 +37,8 @@ object CarRoutines {
                 DASHCAM_DELAY_MS,
             )
         }
+        // Music on the main phone (CarDash Link) resumes once the car's Bluetooth audio is back.
+        LinkClient.onCarOn(context, s)
         if (s.resumeMusicOnCarOn && ResumeState.consume(context)) {
             // Give the audio output (AUX/USB) a moment to come up before playback starts.
             Handler(Looper.getMainLooper()).postDelayed(
@@ -47,11 +51,19 @@ object CarRoutines {
     fun onCarOff(context: Context, s: Settings) {
         ResumeState.save(context, wasPlaying = NowPlayingRepository.isPlaying)
         if (s.pauseMediaOnCarOff) NowPlayingRepository.pause()
+        val toldPhone = LinkClient.onCarOff(context, s)
         InAppNavigator.stop()
         CameraRecordService.stopAll()
         if (s.dndWhileDriving) SystemToggles.setDnd(context, false)
         // Radios off and screen off keep a parked phone cooler.
-        if (s.wifiOffOnCarOff) SystemToggles.setWifi(context, false)
+        if (s.wifiOffOnCarOff) {
+            // Give the "pause" a moment to reach the main phone before its hotspot link drops.
+            if (toldPhone) {
+                Handler(Looper.getMainLooper()).postDelayed({ SystemToggles.setWifi(context, false) }, WIFI_OFF_DELAY_MS)
+            } else {
+                SystemToggles.setWifi(context, false)
+            }
+        }
         if (s.screenOffOnCarOff) {
             if (s.parkedScreen) {
                 // Bring the dashboard up so the parked screen shows even if another app was open.
@@ -75,7 +87,7 @@ object CarRoutines {
     }
 
     // Device Owner apps are exempt from Android's background-activity-start limits.
-    private fun showDashboard(context: Context) {
+    fun showDashboard(context: Context) {
         context.startActivity(
             Intent(context, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT),

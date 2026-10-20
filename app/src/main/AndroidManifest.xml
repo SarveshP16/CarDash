@@ -26,6 +26,9 @@
     <!-- Front/back camera recording (video only, saved to Movies/CarDash) -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <!-- Dashcam sound, only when Settings → Dashcam → Record sound is on -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <!-- Speedometer, sunrise/sunset -->
@@ -85,7 +88,7 @@
         <service
             android:name=".camera.CameraRecordService"
             android:exported="false"
-            android:foregroundServiceType="camera" />
+            android:foregroundServiceType="camera|microphone" />
 
         <service
             android:name=".media.MediaListenerService"

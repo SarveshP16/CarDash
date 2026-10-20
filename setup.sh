@@ -87,6 +87,9 @@ try pm grant "$PKG" android.permission.ACCESS_COARSE_LOCATION
 try pm grant "$PKG" android.permission.BLUETOOTH_CONNECT
 try pm grant "$PKG" android.permission.POST_NOTIFICATIONS
 try pm grant "$PKG" android.permission.CAMERA
+# "install -g" grants every permission, including the microphone. Dashcam sound is off by default:
+# CarDash grants itself the microphone only when Settings → Dashcam → Record sound is switched on.
+try pm revoke "$PKG" android.permission.RECORD_AUDIO
 # Now-playing card: read other apps' media sessions.
 try cmd notification allow_listener "$LISTENER"
 # Do Not Disturb while driving.
@@ -113,8 +116,9 @@ try am start -n "$ACTIVITY"
 
 echo
 echo -e "${GREEN}Done.${NC} On the phone, open Settings (gear on the dashboard):"
-echo "  1. Pick your car's Bluetooth device (pair it in Android Bluetooth settings first)."
-echo "  2. Enter Home/Work addresses."
-echo "  3. Now that CarDash is Device Owner you can sign in to Google: install Google Maps"
+echo "  1. Car: detection works from the charger alone; optionally pick the car's Bluetooth too."
+echo "  2. Navigation: set your Home address and favourites, and choose CarDash / Google Maps / Waze."
+echo "  3. Phone link: pair with CarDash Link on your main phone (see ./setup-link.sh)."
+echo "  4. Now that CarDash is Device Owner you can sign in to Google: install Google Maps"
 echo "     from the Play Store, and YouTube Music (Morphe-patched) — CarDash auto-detects it."
-echo "  4. Turn airplane mode off: while it's on, Android won't let apps toggle Wi-Fi."
+echo "  5. Turn airplane mode off: while it's on, Android won't let apps toggle Wi-Fi."

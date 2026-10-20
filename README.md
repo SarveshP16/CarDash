@@ -59,9 +59,9 @@
 
 ```mermaid
 flowchart LR
-    M["📱 Main phone<br/><b>CarDash Link</b>"] <-->|"Hotspot Wi-Fi<br/>places · music · clips"| C["🚗 Car phone<br/><b>CarDash</b>"]
-    M -->|"Bluetooth audio"| A["🔊 Bluetooth AUX receiver"] --> S["📻 Car stereo"]
-    U["🔌 Car USB power"] -->|"car on / off"| C
+    M["Main phone<br/><b>CarDash Link</b>"] <-->|"Hotspot Wi-Fi<br/>places, music, clips"| C["Car phone<br/><b>CarDash</b>"]
+    M -->|"Bluetooth audio"| A["AUX receiver"] --> S["Car stereo"]
+    U["Car USB"] -->|"car on / off"| C
 ```
 
 - Your main phone runs the hotspot, and the car phone joins it when the car turns on.

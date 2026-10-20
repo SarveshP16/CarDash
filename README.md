@@ -1,5 +1,7 @@
 # CarDash
 
+[![Support me on Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20CarDash-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/crystaxit)
+
 Turns a spare Android phone into a car dashboard, with a companion app for your main phone.
 
 - **CarDash** (`app/`) runs on the car phone (built for a OnePlus 5 on an Android 13 custom ROM, landscape). It's the phone's home screen.
@@ -90,3 +92,11 @@ The APKs end up in `app/build/outputs/apk/debug/` and `link/build/outputs/apk/de
 ## Attribution
 
 Maps, navigation and place search are provided by Google Maps Platform under its [Terms of Service](https://cloud.google.com/maps-platform/terms). Both apps list their open-source licences in-app (CarDash: Settings → System → Open-source licences; Link: About & licences). The Lexend font is used under the SIL Open Font License; see [`licenses/Lexend-OFL.txt`](licenses/Lexend-OFL.txt).
+
+## Licence
+
+CarDash is released under the [MIT License](LICENSE). The Google Maps Platform SDKs it uses are not open source and stay under Google's terms.
+
+## Support
+
+If CarDash is useful to you, you can buy me a coffee on [Ko-fi](https://ko-fi.com/crystaxit). Thank you!

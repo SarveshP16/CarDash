@@ -19,8 +19,11 @@ import kotlin.coroutines.resume
 
 sealed interface NavState {
     data object Starting : NavState
-    /** Navigation can't be used (key not enabled for the Navigation SDK, terms declined…). */
-    data class Unavailable(val reason: String) : NavState
+    /**
+     * Navigation can't be used (key not enabled for the Navigation SDK, terms declined…).
+     * [needsTerms]: Google's navigation terms haven't been accepted; tapping the message calls [InAppNavigator.init] again.
+     */
+    data class Unavailable(val reason: String, val needsTerms: Boolean = false) : NavState
     data object Ready : NavState
     data class Routing(val query: String) : NavState
     data class Guiding(val destination: String) : NavState
@@ -38,11 +41,22 @@ object InAppNavigator {
 
     val isReady: Boolean get() = navigator != null
 
-    /** Needs an Activity: the very first call shows Google's navigation terms dialog. */
+    private var starting = false
+
+    /**
+     * Needs an Activity: if Google's navigation notice hasn't been accepted, the SDK shows it here
+     * ("Got it"). Called once at start-up, and again only when the driver taps the "navigation off"
+     * message, so the notice never repeats by itself.
+     */
     fun init(activity: Activity) {
-        if (navigator != null || !BuildConfig.HAS_MAPS_KEY) return
+        if (navigator != null || starting || !BuildConfig.HAS_MAPS_KEY) return
+        starting = true
+        _state.value = NavState.Starting
+        Log.i(TAG, "Starting navigator")
         NavigationApi.getNavigator(activity, object : NavigationApi.NavigatorListener {
             override fun onNavigatorReady(n: Navigator) {
+                Log.i(TAG, "Navigator ready")
+                starting = false
                 navigator = n
                 n.addArrivalListener { stop() }
                 setVoice(SettingsStore.current.voiceGuidance)
@@ -50,19 +64,24 @@ object InAppNavigator {
             }
 
             override fun onError(errorCode: Int) {
+                Log.w(TAG, "Navigator unavailable: error $errorCode")
+                starting = false
                 _state.value = NavState.Unavailable(
                     when (errorCode) {
                         NavigationApi.ErrorCode.NOT_AUTHORIZED ->
                             "API key isn't enabled for the Navigation SDK"
-                        NavigationApi.ErrorCode.TERMS_NOT_ACCEPTED -> "Navigation terms not accepted"
+                        NavigationApi.ErrorCode.TERMS_NOT_ACCEPTED -> TERMS_REASON
                         NavigationApi.ErrorCode.NETWORK_ERROR -> "No internet connection"
                         NavigationApi.ErrorCode.LOCATION_PERMISSION_MISSING -> "Location permission missing"
                         else -> "Navigation error $errorCode"
                     },
+                    needsTerms = errorCode == NavigationApi.ErrorCode.TERMS_NOT_ACCEPTED,
                 )
             }
         })
     }
+
+    private const val TERMS_REASON = "Google's navigation notice not accepted. Tap to see it again."
 
     /** Finds [query] and starts guidance. Returns an error message to show, or null on success. */
     suspend fun navigateTo(

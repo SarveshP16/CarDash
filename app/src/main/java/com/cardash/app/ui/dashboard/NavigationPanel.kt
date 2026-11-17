@@ -1,6 +1,10 @@
 package com.cardash.app.ui.dashboard
 
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -104,14 +108,31 @@ fun NavigationPanel(night: Boolean, modifier: Modifier = Modifier) {
         }
         (nav as? NavState.Routing)?.let { StatusChip("Finding ${it.query}…", Modifier.align(Alignment.Center)) }
         (nav as? NavState.Unavailable)?.let {
-            StatusChip("In-app navigation off: ${it.reason}", Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
+            StatusChip(
+                "In-app navigation off: ${it.reason}",
+                Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp),
+                // Tapping retries, and the SDK shows its notice again, so a dismissed notice isn't a dead end.
+                onClick = if (it.needsTerms) ({ context.findActivity()?.let(InAppNavigator::init) }) else null,
+            )
         }
     }
 }
 
 @Composable
-private fun StatusChip(text: String, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surface, shadowElevation = 6.dp) {
+private fun StatusChip(text: String, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+    val shape = RoundedCornerShape(16.dp)
+    Surface(
+        modifier = if (onClick != null) modifier.clip(shape).clickable(onClick = onClick) else modifier,
+        shape = shape,
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 6.dp,
+    ) {
         Text(text, fontSize = 17.sp, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
     }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
